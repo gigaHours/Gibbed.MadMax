@@ -136,6 +136,13 @@ namespace Gibbed.MadMax.FileFormats
                 c += (uint)data[i /*++*/] << 24;
             }
 
+            // Jenkins lookup3: if length == 0 (and no tail bytes processed),
+            // skip final mix and return initial c value (0xDEADBEEF for seed=0)
+            if (length == 0)
+            {
+                return c;
+            }
+
             c ^= b;
             c -= (b << 14) | (b >> (32 - 14));
             a ^= c;

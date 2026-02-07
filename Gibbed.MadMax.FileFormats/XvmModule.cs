@@ -286,6 +286,8 @@ namespace Gibbed.MadMax.FileFormats
             this._ThisType = rawModule.ThisType;
             this._Functions.Clear();
             this._Functions.AddRange(functions);
+            this._ImportHashes.Clear();
+            this._ImportHashes.AddRange(importHashes);
             this._Constants.Clear();
             this._Constants.AddRange(constants);
             this._StringHashes.Clear();
