@@ -6,8 +6,8 @@ A set of C# tools for working with Mad Max (2015, Avalanche Studios) game files.
 
 - **Unpack** game archives (`.tab`/`.arc` and `.sarc`)
 - **Convert** binary data formats (ADF, properties) to XML and back
-- **Disassemble** XVM script bytecode to human-readable `.dis` assembly
-- **Assemble** `.dis` files back into `.xvmc` bytecode (round-trip capable)
+- **Disassemble** XVM script bytecode to human-readable `.dis` assembly (with debug info)
+- **Assemble** `.dis` files back into `.xvmc` bytecode (round-trip capable, including debug_info)
 - **Browse** archive contents via a GUI application
 - **Repack** files into `.sarc` archives
 
@@ -76,6 +76,10 @@ The XVM tools enable a full round-trip workflow for modifying game scripts:
 3. **Assemble** the `.dis` back into `.xvmc`
 4. **Verify** by disassembling the new `.xvmc` and comparing (should be identical)
 
+Debug information (`debug_info` and `debug_strings`) is fully preserved during the round-trip.
+The disassembler emits `@line:col` annotations per instruction, and the assembler reads them
+back to rebuild the `debug_info` ADF instance.
+
 For a complete guide on the XVM assembly language, see:
 - **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)**
 - **[XVM Assembly Guide (Russian)](XVM_ASSEMBLY_GUIDE_RU.md)**
@@ -86,30 +90,34 @@ For a complete guide on the XVM assembly language, see:
 == MyFunction ==
 ; hash: 0xABCD1234  args: 2  locals: 3  max_stack: 5
 
-    ldloc 1              ; load target
-    ldattr "Health"      ; get Health attribute
-    ldfloat 10
-    sub                  ; Health - 10
-    stloc 2              ; store in temp
+    ldloc 1              ; load target @7:5
+    ldattr "Health"      ; get Health attribute @7:18
+    ldfloat 10           ; @8:5
+    sub                  ; Health - 10 @8:12
+    stloc 2              ; store in temp @8:5
 
-    ldloc 2
-    ldfloat 0
-    cmpg                 ; temp > 0 ?
-    jz label_dead
+    ldloc 2              ; @10:5
+    ldfloat 0            ; @10:12
+    cmpg                 ; temp > 0 ? @10:9
+    jz label_dead        ; @10:5
 
-    ldloc 1
-    ldloc 2
-    stattr "Health"      ; target.Health = temp
-    jmp label_end
+    ldloc 1              ; @11:5
+    ldloc 2              ; @11:22
+    stattr "Health"      ; target.Health = temp @11:5
+    jmp label_end        ; @11:5
 
 label_dead:
-    ldloc 1
-    ldfloat 0
-    stattr "Health"      ; target.Health = 0
+    ldloc 1              ; @13:5
+    ldfloat 0            ; @13:22
+    stattr "Health"      ; target.Health = 0 @13:5
 
 label_end:
-    ret 0
+    ret 0                ; @15:5
 ```
+
+> **Note:** The `@line:col` annotations at the end of each instruction line are debug info
+> (source line and column from the original script). They are preserved during round-trip
+> and can be omitted when writing new scripts from scratch.
 
 ## Game File Formats
 

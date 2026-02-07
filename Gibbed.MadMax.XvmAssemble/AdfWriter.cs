@@ -21,7 +21,10 @@ namespace Gibbed.MadMax.XvmAssemble
     /// </summary>
     internal static class AdfWriter
     {
-        public static void Write(Stream output, XvmModule module, byte[] debugStrings, Endian endian)
+        private const uint DebugInfoTypeHash = 0xDCB06466;
+
+        public static void Write(Stream output, XvmModule module, byte[] debugStrings,
+            AssembleResult debugInfo, Endian endian)
         {
             // Serialize XvmModule to bytes
             byte[] moduleData;
@@ -46,14 +49,23 @@ namespace Gibbed.MadMax.XvmAssemble
                 }
             }
 
+            // Serialize debug_info to bytes (if present)
+            byte[] debugInfoData = null;
+            if (debugInfo != null && debugInfo.HasDebugInfo)
+            {
+                debugInfoData = BuildDebugInfoInstance(debugInfo, endian);
+            }
+
             // Build name table
             var nameTable = new List<string>();
             nameTable.Add("module");
+            if (debugInfoData != null)
+                nameTable.Add("debug_info");
             if (debugStringsData != null)
                 nameTable.Add("debug_strings");
 
             // Compute layout — data first, metadata last
-            int instanceCount = debugStringsData != null ? 2 : 1;
+            int instanceCount = 1 + (debugInfoData != null ? 1 : 0) + (debugStringsData != null ? 1 : 0);
 
             // Header: 0x40 bytes + comment (empty null-terminated) = 0x41
             int headerEnd = 0x40 + 1; // comment is empty string + null terminator
@@ -62,17 +74,26 @@ namespace Gibbed.MadMax.XvmAssemble
             int moduleDataOffset = Align(headerEnd, 16);
             int moduleDataEnd = moduleDataOffset + moduleData.Length;
 
+            // Debug info data (if present) aligned to 16 bytes
+            int debugInfoDataOffset = 0;
+            int afterModule = moduleDataEnd;
+            if (debugInfoData != null)
+            {
+                debugInfoDataOffset = Align(afterModule, 16);
+                afterModule = debugInfoDataOffset + debugInfoData.Length;
+            }
+
             // Debug strings data (if present) aligned to 16 bytes
             int debugStringsDataOffset = 0;
             int afterData;
             if (debugStringsData != null)
             {
-                debugStringsDataOffset = Align(moduleDataEnd, 16);
+                debugStringsDataOffset = Align(afterModule, 16);
                 afterData = debugStringsDataOffset + debugStringsData.Length;
             }
             else
             {
-                afterData = moduleDataEnd;
+                afterData = afterModule;
             }
 
             // InstanceInfos come after all data
@@ -110,6 +131,13 @@ namespace Gibbed.MadMax.XvmAssemble
             // Write module data
             output.Write(moduleData, 0, moduleData.Length);
 
+            // Write debug info data (if present)
+            if (debugInfoData != null)
+            {
+                WritePadding(output, debugInfoDataOffset);
+                output.Write(debugInfoData, 0, debugInfoData.Length);
+            }
+
             // Write debug strings data (if present)
             if (debugStringsData != null)
             {
@@ -118,13 +146,26 @@ namespace Gibbed.MadMax.XvmAssemble
             }
 
             // Write instance infos
+            long nameIdx = 0;
+
             // module instance
             WriteInstanceInfo(output, endian,
                 HashUtil.HashString("module"),
                 XvmModule.TypeHash,
                 (uint)moduleDataOffset,
                 (uint)moduleData.Length,
-                0);
+                nameIdx++);
+
+            // debug_info instance
+            if (debugInfoData != null)
+            {
+                WriteInstanceInfo(output, endian,
+                    HashUtil.HashString("debug_info"),
+                    DebugInfoTypeHash,
+                    (uint)debugInfoDataOffset,
+                    (uint)debugInfoData.Length,
+                    nameIdx++);
+            }
 
             // debug_strings instance
             if (debugStringsData != null)
@@ -134,7 +175,7 @@ namespace Gibbed.MadMax.XvmAssemble
                     0xFEF3B589,
                     (uint)debugStringsDataOffset,
                     (uint)debugStringsData.Length,
-                    1);
+                    nameIdx++);
             }
 
             // Write name table
@@ -174,6 +215,70 @@ namespace Gibbed.MadMax.XvmAssemble
             foreach (var name in nameTable)
                 size += Encoding.ASCII.GetByteCount(name) + 1; // string + null
             return size;
+        }
+
+        private static byte[] BuildDebugInfoInstance(AssembleResult debugInfo, Endian endian)
+        {
+            int funcCount = debugInfo.FunctionLineno.Count;
+
+            // Header: 16 bytes
+            // Function entries: funcCount * 40 bytes
+            int headerSize = 16 + funcCount * 40;
+            int dataStart = Align(headerSize, 16);
+
+            // Compute data offsets for each function's lineno and colno arrays
+            var linenoOffsets = new int[funcCount];
+            var colnoOffsets = new int[funcCount];
+            int pos = dataStart;
+
+            for (int i = 0; i < funcCount; i++)
+            {
+                linenoOffsets[i] = pos;
+                int linenoSize = debugInfo.FunctionLineno[i].Length * 2;
+                pos += linenoSize;
+                pos = Align(pos, 16);
+
+                colnoOffsets[i] = pos;
+                int colnoSize = debugInfo.FunctionColno[i].Length * 2;
+                pos += colnoSize;
+                if (i < funcCount - 1)
+                    pos = Align(pos, 16);
+            }
+
+            int totalSize = pos;
+            var buffer = new byte[totalSize];
+
+            using (var ms = new MemoryStream(buffer))
+            {
+                // Header
+                ms.WriteValueS64(0x10, endian); // functionsOffset
+                ms.WriteValueS64(funcCount, endian); // functionCount
+
+                // Function entries
+                for (int i = 0; i < funcCount; i++)
+                {
+                    ms.WriteValueS64(linenoOffsets[i], endian);
+                    ms.WriteValueS64(debugInfo.FunctionLineno[i].Length, endian);
+                    ms.WriteValueS64(colnoOffsets[i], endian);
+                    ms.WriteValueS64(debugInfo.FunctionColno[i].Length, endian);
+                    ms.WriteValueU32(debugInfo.FunctionNameHashes[i], endian);
+                    ms.WriteValueU32(0, endian); // padding
+                }
+
+                // Write data arrays (padding is already zeroed)
+                for (int i = 0; i < funcCount; i++)
+                {
+                    ms.Position = linenoOffsets[i];
+                    foreach (var v in debugInfo.FunctionLineno[i])
+                        ms.WriteValueU16(v, endian);
+
+                    ms.Position = colnoOffsets[i];
+                    foreach (var v in debugInfo.FunctionColno[i])
+                        ms.WriteValueU16(v, endian);
+                }
+            }
+
+            return buffer;
         }
 
         private static void WritePadding(Stream output, int targetOffset)

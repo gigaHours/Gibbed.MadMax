@@ -59,6 +59,7 @@ namespace Gibbed.MadMax.XvmAssemble
                 Console.WriteLine("Module: {0}", parsed.Name ?? "(unnamed)");
                 Console.WriteLine("Functions: {0}", parsed.Functions.Count);
                 Console.WriteLine("Has debug strings: {0}", parsed.HasDebugStrings);
+                Console.WriteLine("Has debug info: {0}", parsed.HasDebugInfo);
 
                 Console.WriteLine("Assembling...");
                 var assembler = new Assembler(parsed);
@@ -72,7 +73,7 @@ namespace Gibbed.MadMax.XvmAssemble
                 Console.WriteLine("Writing: {0}", outputPath);
                 using (var output = File.Create(outputPath))
                 {
-                    AdfWriter.Write(output, result.Module, result.DebugStrings, Endian.Little);
+                    AdfWriter.Write(output, result.Module, result.DebugStrings, result, Endian.Little);
                 }
 
                 var fileInfo = new FileInfo(outputPath);

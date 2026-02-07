@@ -34,6 +34,8 @@ namespace Gibbed.MadMax.XvmDisassemble
 {
     internal class Program
     {
+        private const uint DebugInfoTypeHash = 0xDCB06466;
+
         private static string GetExecutableName()
         {
             return Path.GetFileName(System.Reflection.Assembly.GetExecutingAssembly().Location);
@@ -80,6 +82,7 @@ namespace Gibbed.MadMax.XvmDisassemble
             var adf = new FileFormats.AdfFile();
             var module = new FileFormats.XvmModule();
             MemoryStream debugStrings = null;
+            Dictionary<uint, FunctionDebugInfo> debugInfoMap = null;
 
             using (var input = File.OpenRead(inputPath))
             {
@@ -109,6 +112,16 @@ namespace Gibbed.MadMax.XvmDisassemble
                     }
                 }
 
+                var debugInfoInfo = adf.InstanceInfos.FirstOrDefault(i => i.Name == "debug_info");
+                if (debugInfoInfo.TypeHash == DebugInfoTypeHash)
+                {
+                    input.Position = debugInfoInfo.Offset;
+                    using (var data = input.ReadToMemoryStream((int)debugInfoInfo.Size))
+                    {
+                        debugInfoMap = ReadDebugInfo(data, endian);
+                    }
+                }
+
                 var moduleInfo = adf.InstanceInfos.First(i => i.Name == "module");
                 if (moduleInfo.TypeHash != FileFormats.XvmModule.TypeHash)
                 {
@@ -131,9 +144,68 @@ namespace Gibbed.MadMax.XvmDisassemble
 
                 foreach (var function in module.Functions)
                 {
-                    WriteFunctionDisassembly(writer, function, module, debugStrings);
+                    FunctionDebugInfo funcDebug = null;
+                    if (debugInfoMap != null)
+                        debugInfoMap.TryGetValue(function.NameHash, out funcDebug);
+                    WriteFunctionDisassembly(writer, function, module, debugStrings, funcDebug);
                 }
             }
+        }
+
+        private class FunctionDebugInfo
+        {
+            public ushort[] Lineno;
+            public ushort[] Colno;
+        }
+
+        private static Dictionary<uint, FunctionDebugInfo> ReadDebugInfo(Stream data, Endian endian)
+        {
+            var result = new Dictionary<uint, FunctionDebugInfo>();
+
+            var functionsOffset = data.ReadValueS64(endian);
+            var functionCount = data.ReadValueS64(endian);
+
+            if (functionCount <= 0)
+                return result;
+
+            data.Position = functionsOffset;
+
+            var entries = new List<Tuple<long, long, long, long, uint>>();
+            for (long i = 0; i < functionCount; i++)
+            {
+                var linenoOffset = data.ReadValueS64(endian);
+                var linenoCount = data.ReadValueS64(endian);
+                var colnoOffset = data.ReadValueS64(endian);
+                var colnoCount = data.ReadValueS64(endian);
+                var nameHash = data.ReadValueU32(endian);
+                data.ReadValueU32(endian); // padding
+                entries.Add(Tuple.Create(linenoOffset, linenoCount, colnoOffset, colnoCount, nameHash));
+            }
+
+            foreach (var entry in entries)
+            {
+                var info = new FunctionDebugInfo();
+
+                if (entry.Item2 > 0)
+                {
+                    info.Lineno = new ushort[entry.Item2];
+                    data.Position = entry.Item1;
+                    for (long j = 0; j < entry.Item2; j++)
+                        info.Lineno[j] = data.ReadValueU16(endian);
+                }
+
+                if (entry.Item4 > 0)
+                {
+                    info.Colno = new ushort[entry.Item4];
+                    data.Position = entry.Item3;
+                    for (long j = 0; j < entry.Item4; j++)
+                        info.Colno[j] = data.ReadValueU16(endian);
+                }
+
+                result[entry.Item5] = info;
+            }
+
+            return result;
         }
 
         private static void WriteModuleHeader(
@@ -169,7 +241,8 @@ namespace Gibbed.MadMax.XvmDisassemble
             System.CodeDom.Compiler.IndentedTextWriter writer,
             FileFormats.XvmModule.Function function,
             FileFormats.XvmModule module,
-            MemoryStream debugStrings)
+            MemoryStream debugStrings,
+            FunctionDebugInfo funcDebug)
         {
             writer.WriteLine();
             writer.WriteLine("== {0} ==", function.Name ?? string.Format("0x{0:X8}", function.NameHash));
@@ -336,6 +409,16 @@ namespace Gibbed.MadMax.XvmDisassemble
                             break;
                         }
                     }
+                }
+
+                // Append debug line:col annotation
+                if (funcDebug != null)
+                {
+                    ushort line = (funcDebug.Lineno != null && i < funcDebug.Lineno.Length)
+                        ? funcDebug.Lineno[i] : (ushort)0;
+                    ushort col = (funcDebug.Colno != null && i < funcDebug.Colno.Length)
+                        ? funcDebug.Colno[i] : (ushort)0;
+                    writer.Write(" @{0}:{1}", line, col);
                 }
 
                 writer.WriteLine();

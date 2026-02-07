@@ -6,8 +6,8 @@
 
 - **Распаковка** игровых архивов (`.tab`/`.arc` и `.sarc`)
 - **Конвертация** бинарных форматов данных (ADF, свойства) в XML и обратно
-- **Дизассемблирование** байткода скриптов XVM в читаемый `.dis` ассемблер
-- **Ассемблирование** `.dis` файлов обратно в `.xvmc` байткод (с поддержкой round-trip)
+- **Дизассемблирование** байткода скриптов XVM в читаемый `.dis` ассемблер (с отладочной информацией)
+- **Ассемблирование** `.dis` файлов обратно в `.xvmc` байткод (с поддержкой round-trip, включая debug_info)
 - **Просмотр** содержимого архивов через GUI-приложение
 - **Упаковка** файлов в архивы `.sarc`
 
@@ -76,6 +76,10 @@ msbuild "Mad Max.sln" /p:Configuration=Release
 3. **Ассемблировать** `.dis` обратно в `.xvmc`
 4. **Проверить** — дизассемблировать новый `.xvmc` и сравнить (должно быть идентично)
 
+Отладочная информация (`debug_info` и `debug_strings`) полностью сохраняется при round-trip.
+Дизассемблер выводит аннотации `@строка:столбец` для каждой инструкции, а ассемблер
+считывает их обратно и восстанавливает ADF-экземпляр `debug_info`.
+
 Полное руководство по языку ассемблера XVM:
 - **[Руководство XVM Assembly (русский)](XVM_ASSEMBLY_GUIDE_RU.md)**
 - **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)**
@@ -86,30 +90,34 @@ msbuild "Mad Max.sln" /p:Configuration=Release
 == MyFunction ==
 ; hash: 0xABCD1234  args: 2  locals: 3  max_stack: 5
 
-    ldloc 1              ; загрузить цель
-    ldattr "Health"      ; получить атрибут Health
-    ldfloat 10
-    sub                  ; Health - 10
-    stloc 2              ; сохранить во временную
+    ldloc 1              ; загрузить цель @7:5
+    ldattr "Health"      ; получить атрибут Health @7:18
+    ldfloat 10           ; @8:5
+    sub                  ; Health - 10 @8:12
+    stloc 2              ; сохранить во временную @8:5
 
-    ldloc 2
-    ldfloat 0
-    cmpg                 ; temp > 0 ?
-    jz label_dead
+    ldloc 2              ; @10:5
+    ldfloat 0            ; @10:12
+    cmpg                 ; temp > 0 ? @10:9
+    jz label_dead        ; @10:5
 
-    ldloc 1
-    ldloc 2
-    stattr "Health"      ; target.Health = temp
-    jmp label_end
+    ldloc 1              ; @11:5
+    ldloc 2              ; @11:22
+    stattr "Health"      ; target.Health = temp @11:5
+    jmp label_end        ; @11:5
 
 label_dead:
-    ldloc 1
-    ldfloat 0
-    stattr "Health"      ; target.Health = 0
+    ldloc 1              ; @13:5
+    ldfloat 0            ; @13:22
+    stattr "Health"      ; target.Health = 0 @13:5
 
 label_end:
-    ret 0
+    ret 0                ; @15:5
 ```
+
+> **Примечание:** Аннотации `@строка:столбец` в конце каждой строки инструкции — это
+> отладочная информация (строка и столбец из исходного скрипта). Они сохраняются при round-trip
+> и могут быть опущены при написании новых скриптов с нуля.
 
 ## Форматы файлов игры
 

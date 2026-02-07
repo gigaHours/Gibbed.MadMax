@@ -162,6 +162,24 @@ the assembler ignores it. You can write just the mnemonic:
     stloc 3
 ```
 
+### Debug Annotations (@line:col)
+
+Instructions may have a `@line:col` annotation at the end of the line (after any comments):
+
+```asm
+    ldloc 0 ; arg0 @7:42
+    ldglob "scriptgo" @7:52
+    ldattr "GetProperties" @7:63
+```
+
+These annotations record the source line and column from the original script and are
+part of the `debug_info` ADF instance. The disassembler outputs them automatically when
+the `.xvmc` contains `debug_info`. The assembler reads them back to rebuild `debug_info`.
+
+- Format: `@LINE:COL` where LINE and COL are decimal numbers (uint16)
+- Position: at the very end of the line, after the comment
+- Optional: if omitted or all zeros, no `debug_info` instance is generated
+
 ### Group 1: Loading Values onto the Stack
 
 | Mnemonic | Operand | Stack | Description |
@@ -685,10 +703,16 @@ Each instruction is 16 bits:
 - **5-bit opcode** -> 32 possible instructions (30 used)
 - **11-bit operand** -> values 0-2047
 
-### debug_info Is Not Restored
+### debug_info Is Fully Restored
 
-The assembler does not generate the `debug_info` block (instruction-to-source-line mapping).
-This does not affect script execution — `debug_info` is only used for runtime error messages
+The assembler fully supports `debug_info` round-trip. When the disassembler encounters a
+`debug_info` ADF instance in a `.xvmc` file, it emits `@line:col` annotations at the end
+of each instruction line. The assembler reads these annotations back and rebuilds the
+`debug_info` ADF instance (type `0xDCB06466`) with per-instruction line and column data.
+
+If you are writing scripts from scratch, you can omit the `@line:col` annotations —
+the assembler will simply not generate a `debug_info` instance. The game will still
+execute the script normally; `debug_info` is only used for runtime error messages
 with source line references.
 
 ---

@@ -22,8 +22,6 @@ namespace Gibbed.MadMax.XvmAssemble
         private readonly List<string> _debugStringsList = new List<string>();
 
         // Track prefix positions in StringBuffer for debug string patching
-        // Each entry: (position of debug_hi byte in _stringBuffer, index in _debugStringsList)
-        // Only key strings get patched — inline strings don't need debug offset patching
         private readonly List<int> _debugOffsetPositions = new List<int>();
         // Parallel to _debugOffsetPositions — index into _debugStringsList
         private readonly List<int> _debugOffsetStringIndices = new List<int>();
@@ -37,6 +35,9 @@ namespace Gibbed.MadMax.XvmAssemble
 
         // String hash dedup
         private readonly Dictionary<uint, int> _stringHashIndexMap = new Dictionary<uint, int>(); // hash -> index in _stringHashes
+
+        // Deduplication for debug strings
+        private readonly Dictionary<string, int> _debugStringIndexMap = new Dictionary<string, int>();
 
         public Assembler(DisParser.ParsedModule parsed)
         {
@@ -62,6 +63,11 @@ namespace Gibbed.MadMax.XvmAssemble
             }
 
             // Pass 2: encode instructions with resolved labels and constant indices
+            // Also collect debug line/col arrays
+            var funcLineno = new List<ushort[]>();
+            var funcColno = new List<ushort[]>();
+            var funcNameHashes = new List<uint>();
+
             foreach (var pf in _parsed.Functions)
             {
                 var function = new XvmModule.Function();
@@ -72,13 +78,20 @@ namespace Gibbed.MadMax.XvmAssemble
                 function.MaxStackDepth = pf.MaxStackDepth;
 
                 var instructions = new ushort[pf.Instructions.Count];
+                var lineno = new ushort[pf.Instructions.Count];
+                var colno = new ushort[pf.Instructions.Count];
                 for (int i = 0; i < pf.Instructions.Count; i++)
                 {
                     instructions[i] = EncodeInstruction(pf.Instructions[i], pf.Labels);
+                    lineno[i] = pf.Instructions[i].DebugLine;
+                    colno[i] = pf.Instructions[i].DebugCol;
                 }
                 function.Instructions = instructions;
 
                 module.Functions.Add(function);
+                funcLineno.Add(lineno);
+                funcColno.Add(colno);
+                funcNameHashes.Add(pf.NameHash);
             }
 
             // Build debug strings blob BEFORE finalizing StringBuffer,
@@ -108,6 +121,15 @@ namespace Gibbed.MadMax.XvmAssemble
             }
 
             result.Module = module;
+
+            if (_parsed.HasDebugInfo)
+            {
+                result.HasDebugInfo = true;
+                result.FunctionLineno = funcLineno;
+                result.FunctionColno = funcColno;
+                result.FunctionNameHashes = funcNameHashes;
+            }
+
             return result;
         }
 
@@ -127,7 +149,7 @@ namespace Gibbed.MadMax.XvmAssemble
                 case DisParser.InstructionOperandType.String:
                     if (instr.Opcode == XvmOpcode.LoadConst)
                         GetOrCreateStringConstant(instr.StringOperand);
-                    else // ldattr, stattr, ldglob — key strings
+                    else // ldattr, stattr, ldglob
                         GetOrCreateKeyStringConstant(instr.StringOperand);
                     break;
 
@@ -161,7 +183,6 @@ namespace Gibbed.MadMax.XvmAssemble
                 return index;
 
             var c = new XvmModule.Constant();
-            // Type 3 (float): type in bits 16-19
             c.Flags = 0x30000;
             c.Value = rawBits;
 
@@ -182,8 +203,6 @@ namespace Gibbed.MadMax.XvmAssemble
             byte len = (byte)strBytes.Length;
 
             var c = new XvmModule.Constant();
-            // Type 4 (string): flags = len | (alloc_len << 8) | (4 << 16)
-            // Original format: AllocatedLength = 0 for all string constants
             c.Flags = (ulong)len | 0x40000UL;
             c.Value = (ulong)offset;
 
@@ -195,9 +214,10 @@ namespace Gibbed.MadMax.XvmAssemble
 
         private int GetOrCreateKeyStringConstant(string text)
         {
-            // Key strings (ldattr/stattr/ldglob): only 3-byte prefix in StringBuffer,
-            // NO inline string data. String content lives only in debug_strings.
-            // Constant.Length = original string length, AllocatedLength = 0
+            // ldattr/stattr/ldglob: prefix-only entry in StringBuffer.
+            // [hashIndex][debug_hi][debug_lo] — no inline data.
+            // Constant.Length = length of the attr name string.
+            // Runtime reads prefix at [Value-3..Value) to resolve the attr hash.
             int index;
             if (_keyStringMap.TryGetValue(text, out index))
                 return index;
@@ -207,7 +227,6 @@ namespace Gibbed.MadMax.XvmAssemble
             byte len = (byte)strBytes.Length;
 
             var c = new XvmModule.Constant();
-            // flags = len | (0 << 8) | (4 << 16)
             c.Flags = (ulong)len | 0x40000UL;
             c.Value = (ulong)offset;
 
@@ -228,7 +247,6 @@ namespace Gibbed.MadMax.XvmAssemble
             byte len = (byte)data.Length;
 
             var c = new XvmModule.Constant();
-            // flags = len | (0 << 8) | (4 << 16)
             c.Flags = (ulong)len | 0x40000UL;
             c.Value = (ulong)offset;
 
@@ -240,23 +258,21 @@ namespace Gibbed.MadMax.XvmAssemble
 
         /// <summary>
         /// Adds a string to the StringBuffer with inline data:
-        /// [hash_index] [debug_offset_hi] [debug_offset_lo] [string_bytes...]
-        /// Used for ldstr constants. Inline strings are NOT added to debug_strings.
-        /// Returns the offset pointing to the string data.
+        /// [hash_index] [debug_offset_hi] [debug_offset_lo] [string_bytes...] [0x00]
+        /// Used for ldstr constants.
+        /// Returns the offset pointing to the string data (after the prefix).
         /// </summary>
         private int AddInlineToStringBuffer(string text, byte[] strBytes)
         {
             uint hash = HashUtil.HashString(text);
             int hashIndex = GetOrCreateStringHash(hash);
 
-            // Write 3-byte prefix — inline strings do NOT go into debug_strings
             _stringBuffer.Add((byte)hashIndex);
-            _stringBuffer.Add(0); // debug offset hi (unused for inline)
-            _stringBuffer.Add(0); // debug offset lo (unused for inline)
+            _stringBuffer.Add(0); // debug offset hi (unused for inline strings)
+            _stringBuffer.Add(0); // debug offset lo
 
             int dataOffset = _stringBuffer.Count;
 
-            // Write string bytes inline + null terminator
             _stringBuffer.AddRange(strBytes);
             _stringBuffer.Add(0); // null terminator
 
@@ -266,52 +282,78 @@ namespace Gibbed.MadMax.XvmAssemble
         /// <summary>
         /// Adds a key string to the StringBuffer with prefix ONLY (no inline data):
         /// [hash_index] [debug_offset_hi] [debug_offset_lo]
-        /// Used for ldattr/stattr/ldglob constants. The actual string text lives
-        /// only in the debug_strings blob.
-        /// Returns the offset pointing right after the prefix (where data would be).
+        /// Used for ldattr/stattr/ldglob. The runtime reads this prefix to resolve
+        /// the attr by hash. The actual string name lives in debug_strings.
+        /// Returns the offset right after the prefix (what Constant.Value will be).
         /// </summary>
         private int AddKeyToStringBuffer(string text)
         {
             uint hash = HashUtil.HashString(text);
             int hashIndex = GetOrCreateStringHash(hash);
 
-            // Key strings go into debug_strings
-            int debugIdx = _debugStringsList.Count;
-            _debugStringsList.Add(text);
+            int debugIdx = GetOrCreateDebugString(text);
 
-            // Write 3-byte prefix only
             _stringBuffer.Add((byte)hashIndex);
 
-            // Track position of debug offset bytes for later patching
             int debugHiPos = _stringBuffer.Count;
             _debugOffsetPositions.Add(debugHiPos);
             _debugOffsetStringIndices.Add(debugIdx);
 
-            _stringBuffer.Add(0); // debug offset hi (placeholder)
-            _stringBuffer.Add(0); // debug offset lo (placeholder)
+            _stringBuffer.Add(0); // debug offset hi (placeholder, patched later)
+            _stringBuffer.Add(0); // debug offset lo (placeholder, patched later)
 
-            // NO inline data — return offset right after prefix
             int dataOffset = _stringBuffer.Count;
             return dataOffset;
         }
 
+        /// <summary>
+        /// Adds raw bytes to the StringBuffer with 3-byte prefix + inline data:
+        /// [0x00] [0x00] [0x00] [data bytes...] [0x00]
+        /// Used for ldbytes constants. The runtime never reads the prefix for LoadConst,
+        /// it only reads [Value..Value+Length). The prefix is written as zeroes since
+        /// no hash lookup is needed for raw byte data.
+        /// Returns the offset pointing to the data (after the prefix).
+        /// </summary>
         private int AddBytesToStringBuffer(byte[] data)
         {
-            uint hash = HashUtil.HashBytes(data);
-            int hashIndex = GetOrCreateStringHash(hash);
-
-            // Bytes are NOT added to debug_strings
-
-            // Write 3-byte prefix
-            _stringBuffer.Add((byte)hashIndex);
-            _stringBuffer.Add(0); // debug offset hi (unused for bytes)
-            _stringBuffer.Add(0); // debug offset lo (unused for bytes)
+            // No hash needed — runtime never reads prefix for LoadConst (ldbytes).
+            // Write 3 zero bytes to maintain StringBuffer prefix structure.
+            _stringBuffer.Add(0);
+            _stringBuffer.Add(0);
+            _stringBuffer.Add(0);
 
             int dataOffset = _stringBuffer.Count;
             _stringBuffer.AddRange(data);
             _stringBuffer.Add(0); // null terminator
 
             return dataOffset;
+        }
+
+        ///// <summary>
+        ///// Adds raw bytes to the StringBuffer: [data bytes...] [0x00]
+        ///// Used for ldbytes constants. Runtime reads only [Value..Value+Length),
+        ///// no prefix is needed.
+        ///// </summary>
+        //private int AddBytesToStringBuffer(byte[] data)
+        //{
+        //    int dataOffset = _stringBuffer.Count;
+        //    _stringBuffer.AddRange(data);
+        //    _stringBuffer.Add(0); // null terminator
+
+        //    return dataOffset;
+        //}
+
+
+        private int GetOrCreateDebugString(string text)
+        {
+            int index;
+            if (_debugStringIndexMap.TryGetValue(text, out index))
+                return index;
+
+            index = _debugStringsList.Count;
+            _debugStringsList.Add(text);
+            _debugStringIndexMap[text] = index;
+            return index;
         }
 
         private int GetOrCreateStringHash(uint hash)
@@ -376,12 +418,8 @@ namespace Gibbed.MadMax.XvmAssemble
 
         private byte[] BuildDebugStringsBlob()
         {
-            // Build a contiguous buffer of null-terminated UTF8 strings
-            // containing ONLY key strings (ldattr/stattr/ldglob).
-            // Then patch the debug offsets in StringBuffer for those key strings.
             using (var ms = new MemoryStream())
             {
-                // First, build the blob — write all debug strings sequentially
                 var offsets = new int[_debugStringsList.Count];
                 for (int i = 0; i < _debugStringsList.Count; i++)
                 {
@@ -395,7 +433,7 @@ namespace Gibbed.MadMax.XvmAssemble
                     ms.WriteByte(0); // null terminator
                 }
 
-                // Patch debug offsets in StringBuffer for key strings only
+                // Patch debug offsets in StringBuffer
                 for (int i = 0; i < _debugOffsetPositions.Count; i++)
                 {
                     int hiPos = _debugOffsetPositions[i];
@@ -414,5 +452,9 @@ namespace Gibbed.MadMax.XvmAssemble
     {
         public XvmModule Module;
         public byte[] DebugStrings; // null if no debug strings
+        public bool HasDebugInfo;
+        public List<ushort[]> FunctionLineno; // per function, one entry per instruction
+        public List<ushort[]> FunctionColno;
+        public List<uint> FunctionNameHashes; // parallel to Lineno/Colno arrays
     }
 }

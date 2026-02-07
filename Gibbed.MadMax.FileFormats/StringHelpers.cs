@@ -36,7 +36,7 @@ namespace Gibbed.MadMax.FileFormats
             a = b = c = 0xDEADBEEF + (uint)length + seed;
 
             int i = index;
-            while (i + 12 < length)
+            while (i + 12 <= length)
             {
                 // ReSharper disable RedundantCast
                 a += (uint)data[i++] |

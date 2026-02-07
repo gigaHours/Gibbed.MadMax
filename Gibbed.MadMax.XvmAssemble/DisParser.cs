@@ -23,6 +23,7 @@ namespace Gibbed.MadMax.XvmAssemble
             public uint ModuleSize;
             public List<ParsedFunction> Functions = new List<ParsedFunction>();
             public bool HasDebugStrings;
+            public bool HasDebugInfo;
             public List<uint> ImportHashes = new List<uint>();
         }
 
@@ -47,6 +48,8 @@ namespace Gibbed.MadMax.XvmAssemble
             public byte[] BytesOperand;
             public string LabelOperand;
             public int SourceLine;
+            public ushort DebugLine;
+            public ushort DebugCol;
         }
 
         public enum InstructionOperandType
@@ -72,6 +75,7 @@ namespace Gibbed.MadMax.XvmAssemble
             ParsedFunction currentFunction = null;
             int instructionIndex = 0;
             bool hasDebugStrings = false;
+            bool hasDebugInfo = false;
             string headerSection = null; // tracks "imports"
 
             for (int lineNum = 0; lineNum < lines.Length; lineNum++)
@@ -114,7 +118,7 @@ namespace Gibbed.MadMax.XvmAssemble
                     continue;
                 }
 
-                // Instruction line: 0000: opcode [operand] [; comment]
+                // Instruction line: 0000: opcode [operand] [; comment] [@line:col]
                 if (currentFunction != null)
                 {
                     var instr = ParseInstruction(line, lineNum + 1);
@@ -129,6 +133,9 @@ namespace Gibbed.MadMax.XvmAssemble
                             hasDebugStrings = true;
                         }
 
+                        if (instr.DebugLine != 0 || instr.DebugCol != 0)
+                            hasDebugInfo = true;
+
                         currentFunction.Instructions.Add(instr);
                         instructionIndex++;
                     }
@@ -136,6 +143,7 @@ namespace Gibbed.MadMax.XvmAssemble
             }
 
             module.HasDebugStrings = hasDebugStrings;
+            module.HasDebugInfo = hasDebugInfo;
             return module;
         }
 
@@ -212,6 +220,16 @@ namespace Gibbed.MadMax.XvmAssemble
 
         private static ParsedInstruction ParseInstruction(string line, int sourceLine)
         {
+            // Extract @line:col debug annotation from end of line
+            ushort debugLine = 0, debugCol = 0;
+            var debugMatch = Regex.Match(line, @"\s@(\d+):(\d+)\s*$");
+            if (debugMatch.Success)
+            {
+                debugLine = ushort.Parse(debugMatch.Groups[1].Value);
+                debugCol = ushort.Parse(debugMatch.Groups[2].Value);
+                line = line.Substring(0, debugMatch.Index);
+            }
+
             // Strip comment (but not inside strings)
             var codePart = StripComment(line);
             codePart = codePart.Trim();
@@ -229,6 +247,8 @@ namespace Gibbed.MadMax.XvmAssemble
 
             var instr = new ParsedInstruction();
             instr.SourceLine = sourceLine;
+            instr.DebugLine = debugLine;
+            instr.DebugCol = debugCol;
 
             // Split into mnemonic and rest
             var firstSpace = codePart.IndexOf(' ');
