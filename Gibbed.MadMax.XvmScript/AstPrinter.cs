@@ -34,6 +34,8 @@ namespace Gibbed.MadMax.XvmScript
         private int _indent;
         private const string IndentStr = "    ";
 
+        public bool EmitHashes { get; set; }
+
         public AstPrinter(TextWriter writer)
         {
             _writer = writer;
@@ -47,7 +49,7 @@ namespace Gibbed.MadMax.XvmScript
                 WriteLine("module {0}", module.Name);
             }
 
-            if (module.SourceHash != 0)
+            if (EmitHashes && module.SourceHash != 0)
             {
                 WriteLine("#! source_hash: 0x{0:X8}", module.SourceHash);
             }
@@ -71,7 +73,7 @@ namespace Gibbed.MadMax.XvmScript
 
         private void PrintFunction(ScriptFunction func)
         {
-            if (func.NameHash != 0)
+            if (EmitHashes && func.NameHash != 0)
             {
                 WriteLine("#! hash: 0x{0:X8}", func.NameHash);
             }

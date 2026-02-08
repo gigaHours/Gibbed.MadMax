@@ -42,9 +42,11 @@ namespace Gibbed.MadMax.XvmDecompile
         private static void Main(string[] args)
         {
             bool showHelp = false;
+            bool emitHashes = false;
 
             var options = new OptionSet
             {
+                { "hashes", "emit #! hash/source_hash directives", v => emitHashes = v != null },
                 { "h|help", "show this message and exit", v => showHelp = v != null },
             };
 
@@ -83,7 +85,7 @@ namespace Gibbed.MadMax.XvmDecompile
                 using (var output = File.Create(outputPath))
                 using (var writer = new StreamWriter(output, new UTF8Encoding(false)))
                 {
-                    var printer = new AstPrinter(writer);
+                    var printer = new AstPrinter(writer) { EmitHashes = emitHashes };
                     printer.Print(module);
                 }
 
