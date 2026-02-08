@@ -144,6 +144,17 @@ namespace Gibbed.MadMax.XvmAssemble
 
             module.HasDebugStrings = hasDebugStrings;
             module.HasDebugInfo = hasDebugInfo;
+
+            // Auto-compute hashes from names when not explicitly specified
+            if (module.NameHash == 0 && !string.IsNullOrEmpty(module.Name))
+                module.NameHash = HashUtil.HashString(module.Name);
+
+            foreach (var func in module.Functions)
+            {
+                if (func.NameHash == 0 && !string.IsNullOrEmpty(func.Name))
+                    func.NameHash = HashUtil.HashString(func.Name);
+            }
+
             return module;
         }
 

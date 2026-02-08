@@ -74,8 +74,8 @@ namespace Gibbed.MadMax.XvmAssemble
                 function.Name = pf.Name;
                 function.NameHash = pf.NameHash;
                 function.ArgCount = pf.ArgCount;
-                function.LocalsCount = pf.LocalsCount;
-                function.MaxStackDepth = pf.MaxStackDepth;
+                function.LocalsCount = ComputeLocals(pf);
+                function.MaxStackDepth = ComputeMaxStack(pf);
 
                 var instructions = new ushort[pf.Instructions.Count];
                 var lineno = new ushort[pf.Instructions.Count];
@@ -414,6 +414,172 @@ namespace Gibbed.MadMax.XvmAssemble
             }
 
             return (ushort)((operand << 5) | opcode);
+        }
+
+        /// <summary>
+        /// Computes the number of local variable slots needed for a function.
+        /// Scans all ldloc/stloc instructions to find the highest index used,
+        /// then returns max(highestIndex + 1, argCount).
+        /// </summary>
+        private static ushort ComputeLocals(DisParser.ParsedFunction pf)
+        {
+            int maxIndex = pf.ArgCount - 1; // at minimum, need slots for all args
+
+            foreach (var instr in pf.Instructions)
+            {
+                if (instr.Opcode == XvmOpcode.LoadLocal || instr.Opcode == XvmOpcode.StoreLocal)
+                {
+                    if (instr.IntOperand > maxIndex)
+                        maxIndex = instr.IntOperand;
+                }
+            }
+
+            return (ushort)(maxIndex + 1);
+        }
+
+        /// <summary>
+        /// Computes the maximum stack depth for a function using forward dataflow analysis.
+        /// Walks all execution paths (branches, loops) and tracks the peak stack depth.
+        /// </summary>
+        private static ushort ComputeMaxStack(DisParser.ParsedFunction pf)
+        {
+            int count = pf.Instructions.Count;
+            if (count == 0)
+                return 0;
+
+            var depthAt = new int[count];
+            for (int i = 0; i < count; i++)
+                depthAt[i] = -1;
+
+            int maxDepth = 0;
+            var worklist = new Queue<KeyValuePair<int, int>>();
+            worklist.Enqueue(new KeyValuePair<int, int>(0, 0));
+
+            while (worklist.Count > 0)
+            {
+                var item = worklist.Dequeue();
+                int idx = item.Key;
+                int depth = item.Value;
+
+                if (idx < 0 || idx >= count)
+                    continue;
+
+                // Already visited with equal or greater depth — skip
+                if (depthAt[idx] >= depth)
+                    continue;
+
+                depthAt[idx] = depth;
+                if (depth > maxDepth)
+                    maxDepth = depth;
+
+                var instr = pf.Instructions[idx];
+                int net = GetStackEffect(instr);
+                depth += net;
+
+                if (depth > maxDepth)
+                    maxDepth = depth;
+
+                switch (instr.Opcode)
+                {
+                    case XvmOpcode.Jmp:
+                    {
+                        int target;
+                        if (instr.LabelOperand != null && pf.Labels.TryGetValue(instr.LabelOperand, out target))
+                            worklist.Enqueue(new KeyValuePair<int, int>(target, depth));
+                        break;
+                    }
+                    case XvmOpcode.Jz:
+                    {
+                        int target;
+                        if (instr.LabelOperand != null && pf.Labels.TryGetValue(instr.LabelOperand, out target))
+                            worklist.Enqueue(new KeyValuePair<int, int>(target, depth));
+                        worklist.Enqueue(new KeyValuePair<int, int>(idx + 1, depth));
+                        break;
+                    }
+                    case XvmOpcode.Ret:
+                        // End of path
+                        break;
+                    default:
+                        worklist.Enqueue(new KeyValuePair<int, int>(idx + 1, depth));
+                        break;
+                }
+            }
+
+            return (ushort)maxDepth;
+        }
+
+        /// <summary>
+        /// Returns the net stack effect of an instruction.
+        /// Positive = pushes more than pops, negative = pops more than pushes.
+        /// </summary>
+        private static int GetStackEffect(DisParser.ParsedInstruction instr)
+        {
+            switch (instr.Opcode)
+            {
+                // Binary ops: pop 2, push 1 → net -1
+                case XvmOpcode.And:
+                case XvmOpcode.Or:
+                case XvmOpcode.Add:
+                case XvmOpcode.Div:
+                case XvmOpcode.Mod:
+                case XvmOpcode.Mul:
+                case XvmOpcode.Sub:
+                case XvmOpcode.CmpEq:
+                case XvmOpcode.CmpGe:
+                case XvmOpcode.CmpG:
+                case XvmOpcode.CmpNe:
+                case XvmOpcode.LoadItem: // pop obj+index, push value
+                    return -1;
+
+                // Unary pop, no push → net -1
+                case XvmOpcode.Assert:
+                case XvmOpcode.Pop:
+                case XvmOpcode.DebugOut:
+                case XvmOpcode.StoreLocal: // pop 1
+                case XvmOpcode.Jz: // pop condition
+                    return -1;
+
+                // StoreAttr: pop obj + value → net -2
+                case XvmOpcode.StoreAttr:
+                    return -2;
+
+                // StoreItem: pop obj + index + value → net -3
+                case XvmOpcode.StoreItem:
+                    return -3;
+
+                // Pure push → net +1
+                case XvmOpcode.LoadConst:  // ldfloat, ldstr, ldnone, ldbytes
+                case XvmOpcode.LoadBool:
+                case XvmOpcode.LoadGlobal:
+                case XvmOpcode.LoadLocal:
+                    return 1;
+
+                // Replace top: pop 1, push 1 → net 0
+                case XvmOpcode.LoadAttr:
+                case XvmOpcode.Not:
+                case XvmOpcode.Neg:
+                    return 0;
+
+                // No stack effect
+                case XvmOpcode.Jmp:
+                    return 0;
+
+                // Variable: depends on operand
+                case XvmOpcode.MakeList:
+                    // pop N elements, push 1 list
+                    return -(instr.IntOperand - 1);
+
+                case XvmOpcode.Call:
+                    // pop (N args + 1 callable), push 1 result
+                    return -instr.IntOperand;
+
+                case XvmOpcode.Ret:
+                    // pop N (0 or 1 return value)
+                    return -instr.IntOperand;
+
+                default:
+                    return 0;
+            }
         }
 
         private byte[] BuildDebugStringsBlob()

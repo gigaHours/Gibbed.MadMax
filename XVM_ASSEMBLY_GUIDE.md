@@ -78,7 +78,7 @@ The module header consists of comment lines at the beginning of the file:
 | Field | Format | Description |
 |-------|--------|-------------|
 | `name` | string | Module name (for debugging) |
-| `name_hash` | `0xHEX` | Hash of the module name |
+| `name_hash` | `0xHEX` | Hash of the module name (**optional** — auto-computed from `name`) |
 | `source_hash` | `0xHEX` | Hash of the original source file |
 | `flags` | `0xHEX` | Module flags (usually `0x0`) |
 | `size` | number | Module size (usually `0`) |
@@ -91,8 +91,9 @@ The module header consists of comment lines at the beginning of the file:
 | `constants` | Number of constants (computed automatically) |
 | `string_hashes` | Number of string hashes (computed automatically) |
 
-> **Tip:** When creating a new module from scratch, `name_hash` and `source_hash`
-> can be taken from an existing file or set to arbitrary values.
+> **Tip:** `name_hash` is optional — if omitted, the assembler computes it
+> automatically from the module name using Jenkins hash. When creating a new module
+> from scratch, you only need to provide `name` and `source_hash`.
 
 ---
 
@@ -122,24 +123,36 @@ for calling from other scripts via `ldglob`.
 
 | Field | Description |
 |-------|-------------|
-| `hash` | Hash of the function name (must match the name) |
+| `hash` | Hash of the function name (**optional** — auto-computed from name) |
 | `args` | Number of function arguments |
-| `locals` | Total number of local variables (including arguments) |
-| `max_stack` | Maximum stack depth during execution |
+| `locals` | Total number of local variables (**auto-computed** — value in .dis is ignored) |
+| `max_stack` | Maximum stack depth (**auto-computed** — value in .dis is ignored) |
 
 > **Important:** `locals` includes arguments! If a function takes 3 arguments
 > and uses 4 local variables, then `locals = 7`.
 >
 > Local variables 0..args-1 are arguments, args..locals-1 are locals.
 
-### Computing max_stack
+### Automatic hash, locals, and max_stack
 
-`max_stack` is the maximum number of values on the stack at any point in the function.
-An incorrect value can cause a crash. Rule: count the peak stack depth by tracing
-all execution paths.
+**hash** — if omitted, the assembler automatically computes the Jenkins hash of
+the function name. For example, `HashJenkins("PreInit")` = `0xAD92A91E`. This means
+you can write new functions without manually computing hashes.
 
-As a rough estimate: find the longest consecutive chain of `ld*` instructions
-(without `pop`/`call`/`stloc`) — that is the minimum estimate.
+**locals** — always computed automatically. The assembler scans all `ldloc`/`stloc`
+instructions to find the highest variable index used, then sets
+`locals = max(highestIndex + 1, args)`. Any `locals` value in the `.dis` file is ignored.
+
+**max_stack** — always computed automatically using forward dataflow analysis.
+The assembler traces all execution paths (branches, loops) and determines the precise
+peak stack depth. Any `max_stack` value in the `.dis` file is ignored.
+
+This means the minimal function metadata is just the argument count:
+
+```asm
+== MyNewFunction ==
+; args: 2
+```
 
 ---
 
@@ -586,7 +599,7 @@ label_no_part:
 
 ```asm
 == MyCustomFunction ==
-; hash: 0x12345678  args: 2  locals: 3  max_stack: 5
+; args: 2  locals: 3
 
     ; arg0 = self, arg1 = target
     ; local 2 = temporary
@@ -648,10 +661,11 @@ is recommended (VSCode, Notepad++, Sublime Text).
 - Add new functions
 
 **What you need to update when making changes:**
-- `locals` — if you added new local variables
-- `max_stack` — if the peak stack depth changed
 - Labels — if jump targets changed
 - Addresses (XXXX:) — optional, the assembler ignores them
+
+> **Note:** `hash`, `locals`, and `max_stack` are all computed automatically —
+> you don't need to update them manually.
 
 ### Step 4: Assemble Back
 
@@ -755,16 +769,14 @@ and `max_stack` will be incorrect.
     call 1
 ```
 
-### 3. Incorrect `max_stack`
+### 3. ~~Incorrect `max_stack`~~ (No Longer an Issue)
 
-If `max_stack` is less than the actual stack depth — a crash may occur.
-It is better to overestimate than to undercount.
+`max_stack` is now computed automatically by the assembler. You do not need to
+specify or update it manually.
 
-### 4. Incorrect `locals`
+### 4. ~~Incorrect `locals`~~ (No Longer an Issue)
 
-`locals` must include all arguments + all local variables.
-If a function has `args: 3` and uses `stloc 5`, then `locals`
-must be **at least 6** (indices 0-5).
+`locals` is now computed automatically by scanning all `ldloc`/`stloc` instructions.
 
 ### 5. Undefined Label
 
