@@ -6,6 +6,8 @@ A set of C# tools for working with Mad Max (2015, Avalanche Studios) game files.
 
 - **Unpack** game archives (`.tab`/`.arc` and `.sarc`)
 - **Convert** binary data formats (ADF, properties) to XML and back
+- **Decompile** XVM script bytecode to high-level Python-like `.xvm` source code
+- **Compile** `.xvm` source code back to `.xvmc` bytecode
 - **Disassemble** XVM script bytecode to human-readable `.dis` assembly (with debug info)
 - **Assemble** `.dis` files back into `.xvmc` bytecode (round-trip capable, including debug_info)
 - **Browse** archive contents via a GUI application
@@ -53,6 +55,8 @@ All compiled files are output to the `bin/` directory.
 
 | Tool | Description |
 |------|-------------|
+| `Gibbed.MadMax.XvmDecompile` | Decompile `.xvmc` bytecode to high-level `.xvm` source |
+| `Gibbed.MadMax.XvmCompile` | Compile `.xvm` source to `.xvmc` bytecode |
 | `Gibbed.MadMax.XvmDisassemble` | Disassemble `.xvmc` bytecode to `.dis` text |
 | `Gibbed.MadMax.XvmAssemble` | Assemble `.dis` text back to `.xvmc` bytecode |
 
@@ -65,26 +69,61 @@ All compiled files are output to the `bin/` directory.
 
 ## XVM Script Modding
 
-The XVM tools enable a full round-trip workflow for modifying game scripts:
+The XVM tools provide two levels of script modification:
+
+### High-Level: Decompile / Compile (recommended)
+
+```
+.xvmc  -->  XvmDecompile  -->  .xvm  -->  [edit]  -->  XvmCompile  -->  .xvmc
+```
+
+1. **Decompile** an `.xvmc` to get readable Python-like `.xvm` source code
+2. **Edit** the `.xvm` file — modify logic in a familiar high-level syntax
+3. **Compile** the `.xvm` back into `.xvmc`
+
+For the complete XVM scripting language reference, see:
+- **[XVM Scripting System (English)](docs/XVM.md)**
+- **[Скриптовая система XVM (русский)](docs/XVM_RU.md)**
+
+### Low-Level: Disassemble / Assemble
 
 ```
 .xvmc  -->  XvmDisassemble  -->  .dis  -->  [edit]  -->  XvmAssemble  -->  .xvmc
 ```
 
 1. **Disassemble** an `.xvmc` file to get a readable `.dis` file
-2. **Edit** the `.dis` file — modify logic, change constants, add functions
+2. **Edit** the `.dis` file — modify individual bytecode instructions
 3. **Assemble** the `.dis` back into `.xvmc`
-4. **Verify** by disassembling the new `.xvmc` and comparing (should be identical)
 
 Debug information (`debug_info` and `debug_strings`) is fully preserved during the round-trip.
-The disassembler emits `@line:col` annotations per instruction, and the assembler reads them
-back to rebuild the `debug_info` ADF instance.
 
-For a complete guide on the XVM assembly language, see:
+For the XVM assembly language reference, see:
 - **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)**
 - **[XVM Assembly Guide (Russian)](XVM_ASSEMBLY_GUIDE_RU.md)**
 
-### Quick Example
+### Quick Example (High-Level .xvm)
+
+```python
+module veh_player_input
+import @58351C01
+
+def PreInit(self):
+    props = scriptgo.GetProperties(self)
+    props.boost_enabled = true
+    props.rearViewEnabled = false
+
+def CheckBoost(self):
+    props = scriptgo.GetProperties(self)
+    if input.GetButtonInput(@3B91D694) > 0:
+        if props.boost_enabled == true:
+            vehicle.SetBoostInput(props.car, 1.0)
+
+def DisableBoost(self):
+    props = scriptgo.GetProperties(self)
+    props.boost_enabled = false
+```
+
+### Quick Example (Low-Level .dis)
 
 ```asm
 == MyFunction ==
@@ -115,10 +154,6 @@ label_end:
     ret 0                ; @15:5
 ```
 
-> **Note:** The `@line:col` annotations at the end of each instruction line are debug info
-> (source line and column from the original script). They are preserved during round-trip
-> and can be omitted when writing new scripts from scratch.
-
 ## Game File Formats
 
 Mad Max uses the **Apex Engine** with custom binary formats:
@@ -146,8 +181,11 @@ Gibbed.MadMax/
 +-- Gibbed.MadMax.ConvertAdf/          # ADF converter
 +-- Gibbed.MadMax.ConvertProperty/     # Property converter
 +-- Gibbed.MadMax.ConvertSpreadsheet/  # Spreadsheet converter
-+-- Gibbed.MadMax.XvmDisassemble/      # XVM disassembler
-+-- Gibbed.MadMax.XvmAssemble/         # XVM assembler
++-- Gibbed.MadMax.XvmScript/           # Shared XVM AST library
++-- Gibbed.MadMax.XvmDecompile/        # XVM decompiler (.xvmc -> .xvm)
++-- Gibbed.MadMax.XvmCompile/          # XVM compiler (.xvm -> .xvmc)
++-- Gibbed.MadMax.XvmDisassemble/      # XVM disassembler (.xvmc -> .dis)
++-- Gibbed.MadMax.XvmAssemble/         # XVM assembler (.dis -> .xvmc)
 +-- Gibbed.Avalanche.ArchiveViewer/    # GUI archive viewer
 +-- RebuildFileLists/                  # Hash list rebuilder
 +-- bin/                               # Build output
@@ -156,9 +194,11 @@ Gibbed.MadMax/
 ## Documentation
 
 - **[README (English)](README.md)** — This file
-- **[README (Russian)](README_RU.md)** — README on Russian
-- **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)** — Complete guide to writing XVM assembly
-- **[XVM Assembly Guide (Russian)](XVM_ASSEMBLY_GUIDE_RU.md)** — Complete guide to writing XVM assembly (Russian)
+- **[README (Russian)](README_RU.md)** — README на русском
+- **[XVM Scripting System (English)](docs/XVM.md)** — Complete XVM language reference, toolchain, bytecode architecture
+- **[Скриптовая система XVM (русский)](docs/XVM_RU.md)** — Полный справочник языка XVM, инструменты, архитектура байткода
+- **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)** — Low-level XVM assembly guide
+- **[XVM Assembly Guide (Russian)](XVM_ASSEMBLY_GUIDE_RU.md)** — Руководство по XVM ассемблеру
 - **[Project Documentation (Russian)](DOCUMENTATION_RU.md)** — Detailed technical documentation
 
 ## License

@@ -6,6 +6,8 @@
 
 - **Распаковка** игровых архивов (`.tab`/`.arc` и `.sarc`)
 - **Конвертация** бинарных форматов данных (ADF, свойства) в XML и обратно
+- **Декомпиляция** байткода скриптов XVM в высокоуровневый Python-подобный исходный код `.xvm`
+- **Компиляция** исходного кода `.xvm` обратно в байткод `.xvmc`
 - **Дизассемблирование** байткода скриптов XVM в читаемый `.dis` ассемблер (с отладочной информацией)
 - **Ассемблирование** `.dis` файлов обратно в `.xvmc` байткод (с поддержкой round-trip, включая debug_info)
 - **Просмотр** содержимого архивов через GUI-приложение
@@ -53,6 +55,8 @@ msbuild "Mad Max.sln" /p:Configuration=Release
 
 | Инструмент | Описание |
 |------------|----------|
+| `Gibbed.MadMax.XvmDecompile` | Декомпиляция `.xvmc` байткода в высокоуровневый `.xvm` исходный код |
+| `Gibbed.MadMax.XvmCompile` | Компиляция `.xvm` исходного кода в `.xvmc` байткод |
 | `Gibbed.MadMax.XvmDisassemble` | Дизассемблирование `.xvmc` байткода в `.dis` текст |
 | `Gibbed.MadMax.XvmAssemble` | Ассемблирование `.dis` текста обратно в `.xvmc` байткод |
 
@@ -65,26 +69,61 @@ msbuild "Mad Max.sln" /p:Configuration=Release
 
 ## Модификация скриптов XVM
 
-Инструменты XVM обеспечивают полный цикл работы со скриптами игры:
+Инструменты XVM предоставляют два уровня модификации скриптов:
+
+### Высокоуровневый: Декомпиляция / Компиляция (рекомендуется)
+
+```
+.xvmc  -->  XvmDecompile  -->  .xvm  -->  [правка]  -->  XvmCompile  -->  .xvmc
+```
+
+1. **Декомпилировать** `.xvmc` в читаемый Python-подобный исходный код `.xvm`
+2. **Отредактировать** файл `.xvm` — изменять логику в привычном высокоуровневом синтаксисе
+3. **Скомпилировать** `.xvm` обратно в `.xvmc`
+
+Полный справочник скриптового языка XVM:
+- **[Скриптовая система XVM (русский)](docs/XVM_RU.md)**
+- **[XVM Scripting System (English)](docs/XVM.md)**
+
+### Низкоуровневый: Дизассемблирование / Ассемблирование
 
 ```
 .xvmc  -->  XvmDisassemble  -->  .dis  -->  [правка]  -->  XvmAssemble  -->  .xvmc
 ```
 
-1. **Дизассемблировать** `.xvmc` файл, чтобы получить читаемый `.dis`
-2. **Отредактировать** `.dis` — изменить логику, константы, добавить функции
+1. **Дизассемблировать** `.xvmc` в читаемый файл `.dis`
+2. **Отредактировать** `.dis` — изменять отдельные инструкции байткода
 3. **Ассемблировать** `.dis` обратно в `.xvmc`
-4. **Проверить** — дизассемблировать новый `.xvmc` и сравнить (должно быть идентично)
 
 Отладочная информация (`debug_info` и `debug_strings`) полностью сохраняется при round-trip.
-Дизассемблер выводит аннотации `@строка:столбец` для каждой инструкции, а ассемблер
-считывает их обратно и восстанавливает ADF-экземпляр `debug_info`.
 
-Полное руководство по языку ассемблера XVM:
+Руководство по ассемблеру XVM:
 - **[Руководство XVM Assembly (русский)](XVM_ASSEMBLY_GUIDE_RU.md)**
 - **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)**
 
-### Быстрый пример
+### Быстрый пример (высокоуровневый .xvm)
+
+```python
+module veh_player_input
+import @58351C01
+
+def PreInit(self):
+    props = scriptgo.GetProperties(self)
+    props.boost_enabled = true
+    props.rearViewEnabled = false
+
+def CheckBoost(self):
+    props = scriptgo.GetProperties(self)
+    if input.GetButtonInput(@3B91D694) > 0:
+        if props.boost_enabled == true:
+            vehicle.SetBoostInput(props.car, 1.0)
+
+def DisableBoost(self):
+    props = scriptgo.GetProperties(self)
+    props.boost_enabled = false
+```
+
+### Быстрый пример (низкоуровневый .dis)
 
 ```asm
 == MyFunction ==
@@ -115,10 +154,6 @@ label_end:
     ret 0                ; @15:5
 ```
 
-> **Примечание:** Аннотации `@строка:столбец` в конце каждой строки инструкции — это
-> отладочная информация (строка и столбец из исходного скрипта). Они сохраняются при round-trip
-> и могут быть опущены при написании новых скриптов с нуля.
-
 ## Форматы файлов игры
 
 Mad Max использует движок **Apex Engine** с собственными бинарными форматами:
@@ -146,8 +181,11 @@ Gibbed.MadMax/
 +-- Gibbed.MadMax.ConvertAdf/          # Конвертер ADF
 +-- Gibbed.MadMax.ConvertProperty/     # Конвертер свойств
 +-- Gibbed.MadMax.ConvertSpreadsheet/  # Конвертер таблиц
-+-- Gibbed.MadMax.XvmDisassemble/      # Дизассемблер XVM
-+-- Gibbed.MadMax.XvmAssemble/         # Ассемблер XVM
++-- Gibbed.MadMax.XvmScript/           # Общая библиотека AST для XVM
++-- Gibbed.MadMax.XvmDecompile/        # Декомпилятор XVM (.xvmc -> .xvm)
++-- Gibbed.MadMax.XvmCompile/          # Компилятор XVM (.xvm -> .xvmc)
++-- Gibbed.MadMax.XvmDisassemble/      # Дизассемблер XVM (.xvmc -> .dis)
++-- Gibbed.MadMax.XvmAssemble/         # Ассемблер XVM (.dis -> .xvmc)
 +-- Gibbed.Avalanche.ArchiveViewer/    # GUI-просмотрщик архивов
 +-- RebuildFileLists/                  # Перестройка хеш-листов
 +-- bin/                               # Результаты сборки
@@ -157,8 +195,10 @@ Gibbed.MadMax/
 
 - **[README (English)](README.md)** — README на английском
 - **[README (русский)](README_RU.md)** — Этот файл
-- **[Руководство XVM Assembly (русский)](XVM_ASSEMBLY_GUIDE_RU.md)** — Полное руководство по написанию XVM ассемблера
-- **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)** — Полное руководство по XVM ассемблеру на английском
+- **[Скриптовая система XVM (русский)](docs/XVM_RU.md)** — Полный справочник языка XVM, инструменты, архитектура байткода
+- **[XVM Scripting System (English)](docs/XVM.md)** — Complete XVM language reference, toolchain, bytecode architecture
+- **[Руководство XVM Assembly (русский)](XVM_ASSEMBLY_GUIDE_RU.md)** — Низкоуровневое руководство по XVM ассемблеру
+- **[XVM Assembly Guide (English)](XVM_ASSEMBLY_GUIDE.md)** — Low-level XVM assembly guide
 - **[Документация проекта (русский)](DOCUMENTATION_RU.md)** — Подробная техническая документация
 
 ## Лицензия
