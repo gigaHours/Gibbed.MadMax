@@ -12,7 +12,7 @@ namespace Gibbed.MadMax.XvmAssemble
     /// Parses a .dis file (output of XvmDisassemble) into an intermediate representation
     /// that can be assembled back into a .xvmc file.
     /// </summary>
-    internal class DisParser
+    public class DisParser
     {
         public class ParsedModule
         {

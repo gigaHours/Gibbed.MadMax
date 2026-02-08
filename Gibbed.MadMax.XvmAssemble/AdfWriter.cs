@@ -19,7 +19,7 @@ namespace Gibbed.MadMax.XvmAssemble
     ///   [InstanceInfos]
     ///   [NameTable]
     /// </summary>
-    internal static class AdfWriter
+    public static class AdfWriter
     {
         private const uint DebugInfoTypeHash = 0xDCB06466;
 

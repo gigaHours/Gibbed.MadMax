@@ -20,7 +20,7 @@ namespace Gibbed.MadMax.XvmAssemble
     /// [StringBuffer (byte[])]
     /// [Module name (string)]
     /// </summary>
-    internal static class XvmModuleWriter
+    public static class XvmModuleWriter
     {
         // RawModule header size: 4+4+4+4 + 8+8+8 + (10 pairs of int64) = 24 + 160 = 184 bytes
         private const int RawModuleHeaderSize =

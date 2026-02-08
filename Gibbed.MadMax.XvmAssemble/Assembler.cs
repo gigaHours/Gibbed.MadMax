@@ -11,7 +11,7 @@ namespace Gibbed.MadMax.XvmAssemble
     /// Builds constant table, string buffer, string hashes, resolves labels,
     /// and encodes instructions.
     /// </summary>
-    internal class Assembler
+    public class Assembler
     {
         private readonly DisParser.ParsedModule _parsed;
 
@@ -614,7 +614,7 @@ namespace Gibbed.MadMax.XvmAssemble
         }
     }
 
-    internal class AssembleResult
+    public class AssembleResult
     {
         public XvmModule Module;
         public byte[] DebugStrings; // null if no debug strings
