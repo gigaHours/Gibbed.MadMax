@@ -55,8 +55,8 @@ All compiled files are output to the `bin/` directory.
 
 | Tool | Description |
 |------|-------------|
-| `Gibbed.MadMax.XvmDecompile` | Decompile `.xvmc` bytecode to high-level `.xvm` source |
-| `Gibbed.MadMax.XvmCompile` | Compile `.xvm` source to `.xvmc` bytecode |
+| `Gibbed.MadMax.XvmDecompile` | Decompile `.xvmc` bytecode to high-level `.xvm` source (supports batch directory mode) |
+| `Gibbed.MadMax.XvmCompile` | Compile `.xvm` source to `.xvmc` bytecode (supports batch directory mode) |
 | `Gibbed.MadMax.XvmDisassemble` | Disassemble `.xvmc` bytecode to `.dis` text |
 | `Gibbed.MadMax.XvmAssemble` | Assemble `.dis` text back to `.xvmc` bytecode |
 
@@ -80,6 +80,8 @@ The XVM tools provide two levels of script modification:
 1. **Decompile** an `.xvmc` to get readable Python-like `.xvm` source code
 2. **Edit** the `.xvm` file — modify logic in a familiar high-level syntax
 3. **Compile** the `.xvm` back into `.xvmc`
+
+Both tools support **batch directory mode**: drag a folder onto the `.exe` (or pass a directory path) to process all `.xvmc`/`.xvm` files recursively.
 
 For the complete XVM scripting language reference, see:
 - **[XVM Scripting System (English)](docs/XVM.md)**

@@ -106,6 +106,8 @@
 | `Gibbed.MadMax.ConvertAdf` | Конвертация ADF (бинарный <-> XML) |
 | `Gibbed.MadMax.ConvertProperty` | Конвертация контейнеров свойств (бинарный <-> XML) |
 | `Gibbed.MadMax.ConvertSpreadsheet` | Конвертация таблиц |
+| `Gibbed.MadMax.XvmDecompile` | Декомпиляция `.xvmc` байткода в `.xvm` исходный код (поддержка директорий) |
+| `Gibbed.MadMax.XvmCompile` | Компиляция `.xvm` исходного кода в `.xvmc` байткод |
 | `Gibbed.MadMax.XvmDisassemble` | Дизассемблирование байткода XVM |
 | `Gibbed.MadMax.XvmAssemble` | Ассемблирование `.dis` текста обратно в `.xvmc` байткод |
 | `RebuildFileLists` | Перестроение хеш-листов файлов |
@@ -780,6 +782,8 @@ msbuild "Mad Max.sln" /p:Configuration=Release
 - `Gibbed.MadMax.ConvertAdf.exe`
 - `Gibbed.MadMax.ConvertProperty.exe`
 - `Gibbed.MadMax.ConvertSpreadsheet.exe`
+- `Gibbed.MadMax.XvmDecompile.exe`
+- `Gibbed.MadMax.XvmCompile.exe`
 - `Gibbed.MadMax.XvmDisassemble.exe`
 - `Gibbed.MadMax.XvmAssemble.exe`
 - `RebuildFileLists.exe`

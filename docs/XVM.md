@@ -69,12 +69,14 @@ Gibbed.MadMax.XvmCompile.exe veh_player_input.xvm veh_player_input.xvmc
 Converts `.xvmc` bytecode to high-level `.xvm` source code.
 
 ```
-Usage: Gibbed.MadMax.XvmDecompile.exe [OPTIONS] input.xvmc [output.xvm]
+Usage: Gibbed.MadMax.XvmDecompile.exe [OPTIONS] input_xvmc_or_directory [output.xvm]
 
 Options:
   --hashes    Emit #! hash/source_hash directives for exact round-trip
   -h, --help  Show help
 ```
+
+**Batch mode:** If a directory is passed instead of a file, all `.xvmc` files are decompiled recursively. You can drag-and-drop a folder onto the `.exe` in Windows Explorer.
 
 **Without `--hashes` (default):** Produces clean, readable source code. Function hashes are auto-computed from names during recompilation. Suitable for most modding use cases.
 
@@ -435,6 +437,15 @@ call 1             # call with 1 argument
 push value         # value to store
 push obj           # target object
 stattr "name"      # obj.name = value
+```
+
+### Store Item Convention
+
+```
+push value         # value to store
+push obj           # target object (list/array)
+push index         # index into the object
+stitem             # obj[index] = value
 ```
 
 ### Constant Table

@@ -213,7 +213,7 @@ the `.xvmc` contains `debug_info`. The assembler reads them back to rebuild `deb
 |----------|---------|-------|-------------|
 | `stloc N` | index | val -> | Store to local variable |
 | `stattr "name"` | string | obj, val -> | Set object attribute |
-| `stitem` | — | obj, idx, val -> | Set element by index |
+| `stitem` | — | val, obj, idx -> | Set element by index (push value, obj, index) |
 
 ### Group 3: Arithmetic and Comparisons
 
