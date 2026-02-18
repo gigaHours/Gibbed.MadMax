@@ -66,9 +66,10 @@ namespace Gibbed.MadMax.XvmDecompile
 
             if (extras.Count < 1 || extras.Count > 2 || showHelp)
             {
-                Console.WriteLine("Usage: {0} [OPTIONS]+ input_xvmc [output_xvm]", GetExecutableName());
+                Console.WriteLine("Usage: {0} [OPTIONS]+ input_xvmc_or_directory [output_xvm]", GetExecutableName());
                 Console.WriteLine();
                 Console.WriteLine("Decompiles an XVM bytecode module (.xvmc) into high-level source code (.xvm).");
+                Console.WriteLine("If a directory is specified, all .xvmc files are decompiled recursively.");
                 Console.WriteLine();
                 Console.WriteLine("Options:");
                 options.WriteOptionDescriptions(Console.Out);
@@ -76,25 +77,63 @@ namespace Gibbed.MadMax.XvmDecompile
             }
 
             string inputPath = extras[0];
-            string outputPath = extras.Count > 1 ? extras[1] : Path.ChangeExtension(inputPath, ".xvm");
 
-            try
+            if (Directory.Exists(inputPath))
             {
-                var module = Decompile(inputPath);
-
-                using (var output = File.Create(outputPath))
-                using (var writer = new StreamWriter(output, new UTF8Encoding(false)))
+                var files = Directory.GetFiles(inputPath, "*.xvmc", SearchOption.AllDirectories);
+                if (files.Length == 0)
                 {
-                    var printer = new AstPrinter(writer) { EmitHashes = emitHashes };
-                    printer.Print(module);
+                    Console.WriteLine("No .xvmc files found in {0}", inputPath);
+                    return;
                 }
 
-                Console.WriteLine("Decompiled to {0}", outputPath);
+                int success = 0, failed = 0;
+                foreach (var file in files)
+                {
+                    var outPath = Path.ChangeExtension(file, ".xvm");
+                    try
+                    {
+                        var module = Decompile(file);
+                        using (var output = File.Create(outPath))
+                        using (var writer = new StreamWriter(output, new UTF8Encoding(false)))
+                        {
+                            var printer = new AstPrinter(writer) { EmitHashes = emitHashes };
+                            printer.Print(module);
+                        }
+                        Console.WriteLine("Decompiled {0}", file);
+                        success++;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine("Error decompiling {0}: {1}", file, ex.Message);
+                        failed++;
+                    }
+                }
+                Console.WriteLine();
+                Console.WriteLine("Done: {0} decompiled, {1} failed", success, failed);
             }
-            catch (Exception ex)
+            else
             {
-                Console.Error.WriteLine("Error: {0}", ex.Message);
-                Console.Error.WriteLine(ex.StackTrace);
+                string outputPath = extras.Count > 1 ? extras[1] : Path.ChangeExtension(inputPath, ".xvm");
+
+                try
+                {
+                    var module = Decompile(inputPath);
+
+                    using (var output = File.Create(outputPath))
+                    using (var writer = new StreamWriter(output, new UTF8Encoding(false)))
+                    {
+                        var printer = new AstPrinter(writer) { EmitHashes = emitHashes };
+                        printer.Print(module);
+                    }
+
+                    Console.WriteLine("Decompiled to {0}", outputPath);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("Error: {0}", ex.Message);
+                    Console.Error.WriteLine(ex.StackTrace);
+                }
             }
         }
 
