@@ -148,9 +148,10 @@ namespace Gibbed.MadMax.XvmDecompile
 
                     case XvmOpcode.StoreItem:
                     {
-                        var val = SafePop(stack);
+                        // XVM stack order: push value, push obj, push index → stitem
                         var index = SafePop(stack);
                         var obj = SafePop(stack);
+                        var val = SafePop(stack);
                         result.Statements.Add(new IndexAssignStmt(obj, index, val));
                         break;
                     }

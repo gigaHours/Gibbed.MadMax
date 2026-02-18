@@ -142,9 +142,10 @@ namespace Gibbed.MadMax.XvmCompile
             }
             else if (stmt is IndexAssignStmt indexAssign)
             {
+                // XVM stitem expects: push value, push obj, push index → stitem
+                EmitExpr(indexAssign.Value);
                 EmitExpr(indexAssign.Object);
                 EmitExpr(indexAssign.Index);
-                EmitExpr(indexAssign.Value);
                 Emit(XvmOpcode.StoreItem, DisParser.InstructionOperandType.None);
             }
             else if (stmt is ExprStmt exprStmt)
