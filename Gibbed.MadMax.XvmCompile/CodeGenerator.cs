@@ -45,6 +45,7 @@ namespace Gibbed.MadMax.XvmCompile
         private FunctionScope _currentScope;
         private ushort _debugLine;
         private ushort _debugCol;
+        private Stack<string> _breakLabels = new Stack<string>();
 
         public CodeGenerator(
             ScriptModule module,
@@ -178,6 +179,12 @@ namespace Gibbed.MadMax.XvmCompile
                 EmitExpr(assertStmt.Value);
                 Emit(XvmOpcode.Assert, DisParser.InstructionOperandType.None);
             }
+            else if (stmt is BreakStmt)
+            {
+                if (_breakLabels.Count == 0)
+                    throw new FormatException("'break' outside of while loop");
+                EmitJmp(_breakLabels.Peek());
+            }
         }
 
         private void EmitIf(IfStmt ifStmt)
@@ -213,7 +220,9 @@ namespace Gibbed.MadMax.XvmCompile
             PlaceLabel(loopLabel);
             EmitExpr(whileStmt.Condition);
             EmitJz(endLabel);
+            _breakLabels.Push(endLabel);
             EmitStmts(whileStmt.Body);
+            _breakLabels.Pop();
             EmitJmp(loopLabel);
             PlaceLabel(endLabel);
         }

@@ -51,6 +51,7 @@ namespace Gibbed.MadMax.XvmCompile
             { "false", TokenType.False },
             { "none", TokenType.None },
             { "pass", TokenType.Pass },
+            { "break", TokenType.Break },
         };
 
         public Lexer(string source)

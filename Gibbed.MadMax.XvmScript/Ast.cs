@@ -248,5 +248,7 @@ namespace Gibbed.MadMax.XvmScript
         public AssertStmt(Expr value) { Value = value; }
     }
 
+    public class BreakStmt : Stmt { }
+
     #endregion
 }

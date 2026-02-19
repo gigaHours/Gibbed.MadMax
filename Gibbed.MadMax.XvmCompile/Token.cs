@@ -47,6 +47,7 @@ namespace Gibbed.MadMax.XvmCompile
         False,
         None,
         Pass,
+        Break,
 
         // Literals
         Identifier,

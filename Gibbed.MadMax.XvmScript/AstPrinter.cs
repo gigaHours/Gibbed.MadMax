@@ -179,6 +179,10 @@ namespace Gibbed.MadMax.XvmScript
                 PrintExpr(assertStmt.Value);
                 _writer.WriteLine();
             }
+            else if (stmt is BreakStmt)
+            {
+                WriteLine("break");
+            }
         }
 
         private void PrintElseOrElif(List<Stmt> elseBody)

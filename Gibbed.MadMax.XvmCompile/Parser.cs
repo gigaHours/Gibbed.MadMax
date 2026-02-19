@@ -171,6 +171,13 @@ namespace Gibbed.MadMax.XvmCompile
                     Consume(TokenType.Pass);
                     Consume(TokenType.Newline);
                     return null; // pass is a no-op, skip
+                case TokenType.Break:
+                {
+                    int line = Current.Line, col = Current.Column;
+                    Consume(TokenType.Break);
+                    Consume(TokenType.Newline);
+                    return new BreakStmt() { Line = line, Col = col };
+                }
                 default:
                     return ParseAssignOrExpr();
             }

@@ -28,7 +28,7 @@ using Gibbed.MadMax.XvmScript;
 namespace Gibbed.MadMax.XvmDecompile
 {
     /// <summary>
-    /// Recovers high-level control flow structures (if/else, while) from a CFG.
+    /// Recovers high-level control flow structures (if/else, while, break) from a CFG.
     /// Uses a region-based approach: processes blocks in reverse postorder,
     /// recognizing patterns and reducing them to structured AST nodes.
     /// </summary>
@@ -37,6 +37,9 @@ namespace Gibbed.MadMax.XvmDecompile
         private readonly List<BasicBlock> _blocks;
         private readonly Dictionary<int, BlockResult> _blockResults;
         private readonly HashSet<int> _visited;
+
+        // Stack of while-loop exit blocks for break detection
+        private readonly Stack<BasicBlock> _whileExitStack = new Stack<BasicBlock>();
 
         public StructuralAnalysis(
             List<BasicBlock> blocks,
@@ -86,9 +89,17 @@ namespace Gibbed.MadMax.XvmDecompile
                 {
                     stmts.AddRange(EmitIfElse(current, exitBlock));
                     // Find the merge point after if/else
-                    var merge = FindMergePoint(current);
                     current = merge;
                     continue;
+                }
+
+                // Check if this block jumps to a while exit (break)
+                if (lastInstr.Opcode == XvmOpcode.Jmp && IsBreakTarget(lastInstr.JumpTarget))
+                {
+                    if (br != null)
+                        stmts.AddRange(br.Statements);
+                    stmts.Add(new BreakStmt());
+                    return stmts;
                 }
 
                 // Linear block
@@ -114,6 +125,19 @@ namespace Gibbed.MadMax.XvmDecompile
             }
 
             return stmts;
+        }
+
+        /// <summary>
+        /// Checks if a jump target is the exit of a containing while loop.
+        /// </summary>
+        private bool IsBreakTarget(int jumpTarget)
+        {
+            foreach (var exitBlock in _whileExitStack)
+            {
+                if (exitBlock != null && exitBlock.StartIndex == jumpTarget)
+                    return true;
+            }
+            return false;
         }
 
         #region While Detection
@@ -162,7 +186,10 @@ namespace Gibbed.MadMax.XvmDecompile
             List<Stmt> body;
             if (bodyStart != null && bodyStart != jzTarget)
             {
-                body = ProcessRegion(bodyStart, header);
+                // Push while exit for break detection, then process body
+                _whileExitStack.Push(jzTarget);
+                body = ProcessRegion(bodyStart, jzTarget);
+                _whileExitStack.Pop();
             }
             else
             {
@@ -202,7 +229,7 @@ namespace Gibbed.MadMax.XvmDecompile
             var jzTarget = condBlock.Successors[1];
 
             // Find merge point
-            var merge = FindMergePoint(condBlock);
+            var merge = FindMergePoint(condBlock, outerExit);
 
             if (merge == jzTarget)
             {
@@ -225,7 +252,7 @@ namespace Gibbed.MadMax.XvmDecompile
         /// Find the merge point after an if/else construct.
         /// The merge point is where both branches converge.
         /// </summary>
-        private BasicBlock FindMergePoint(BasicBlock condBlock)
+        private BasicBlock FindMergePoint(BasicBlock condBlock, BasicBlock exitBlock)
         {
             if (condBlock.Successors.Count < 2)
                 return null;
@@ -240,10 +267,19 @@ namespace Gibbed.MadMax.XvmDecompile
                 var thenLast = thenEnd.Instructions[thenEnd.Instructions.Count - 1];
                 if (thenLast.Opcode == XvmOpcode.Jmp)
                 {
+                    var jmpTarget = thenLast.JumpTarget;
+
+                    // If the jmp target is a while exit (break), don't use it as merge.
+                    // The merge should be the jzTarget instead.
+                    if (IsBreakTarget(jmpTarget))
+                    {
+                        return jzTarget;
+                    }
+
                     // The jmp target is the merge point
                     foreach (var succ in thenEnd.Successors)
                     {
-                        if (succ.StartIndex == thenLast.JumpTarget)
+                        if (succ.StartIndex == jmpTarget)
                             return succ;
                     }
                 }
@@ -274,7 +310,7 @@ namespace Gibbed.MadMax.XvmDecompile
                 if (lastInstr.Opcode == XvmOpcode.Jz)
                 {
                     // This is a nested if — follow it to its merge, then continue
-                    var merge = FindMergePoint(current);
+                    var merge = FindMergePoint(current, stopBlock);
                     if (merge == null || merge == stopBlock)
                         return current;
                     current = merge;
@@ -282,7 +318,12 @@ namespace Gibbed.MadMax.XvmDecompile
                 }
 
                 if (current.Successors.Count == 1)
+                {
+                    // Don't advance past stopBlock — return current block as the end
+                    if (current.Successors[0] == stopBlock)
+                        return current;
                     current = current.Successors[0];
+                }
                 else
                     break;
             }
