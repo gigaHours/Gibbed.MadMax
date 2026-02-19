@@ -89,6 +89,7 @@ namespace Gibbed.MadMax.XvmDecompile
                 {
                     stmts.AddRange(EmitIfElse(current, exitBlock));
                     // Find the merge point after if/else
+                    var merge = FindMergePoint(current, exitBlock);
                     current = merge;
                     continue;
                 }

@@ -201,10 +201,12 @@ else:
     do_default()
 ```
 
-**while:**
+**while / break:**
 ```python
 while condition:
     do_work()
+    if done:
+        break
 ```
 
 **return:**
@@ -673,7 +675,7 @@ A Visual Studio Code extension for XVM development is planned with the following
 
 **Syntax Highlighting**
 - Full grammar for `.xvm` files
-- Keyword highlighting (`def`, `if`, `elif`, `else`, `while`, `return`, `assert`, `pass`, `and`, `or`, `not`, `true`, `false`, `none`, `module`, `import`)
+- Keyword highlighting (`def`, `if`, `elif`, `else`, `while`, `break`, `return`, `assert`, `pass`, `and`, `or`, `not`, `true`, `false`, `none`, `module`, `import`)
 - String, number, bytes literal, and comment highlighting
 - `#!` directive highlighting
 

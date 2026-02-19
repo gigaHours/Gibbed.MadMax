@@ -201,10 +201,12 @@ else:
     do_default()
 ```
 
-**while:**
+**while / break:**
 ```python
 while condition:
     do_work()
+    if done:
+        break
 ```
 
 **return:**
@@ -673,7 +675,7 @@ Mad Max поддерживает папку `dropzone` для переопред
 
 **Подсветка синтаксиса**
 - Полная грамматика для файлов `.xvm`
-- Подсветка ключевых слов (`def`, `if`, `elif`, `else`, `while`, `return`, `assert`, `pass`, `and`, `or`, `not`, `true`, `false`, `none`, `module`, `import`)
+- Подсветка ключевых слов (`def`, `if`, `elif`, `else`, `while`, `break`, `return`, `assert`, `pass`, `and`, `or`, `not`, `true`, `false`, `none`, `module`, `import`)
 - Подсветка строк, чисел, байтовых литералов и комментариев
 - Подсветка директив `#!`
 
