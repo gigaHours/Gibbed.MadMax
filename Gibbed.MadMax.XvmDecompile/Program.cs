@@ -182,6 +182,7 @@ namespace Gibbed.MadMax.XvmDecompile
             var scriptModule = new ScriptModule();
             scriptModule.Name = xvmModule.Name;
             scriptModule.SourceHash = xvmModule.SourceHash;
+            scriptModule.Flags = xvmModule.Flags;
             scriptModule.Imports.AddRange(xvmModule.ImportHashes);
 
             foreach (var func in xvmModule.Functions)

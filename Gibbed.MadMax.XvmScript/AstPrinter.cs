@@ -49,6 +49,11 @@ namespace Gibbed.MadMax.XvmScript
                 WriteLine("module {0}", module.Name);
             }
 
+            if (module.Flags != 0)
+            {
+                WriteLine("#! flags: 0x{0:X}", module.Flags);
+            }
+
             if (EmitHashes && module.SourceHash != 0)
             {
                 WriteLine("#! source_hash: 0x{0:X8}", module.SourceHash);

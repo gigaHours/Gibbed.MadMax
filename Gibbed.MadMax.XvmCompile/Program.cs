@@ -94,8 +94,9 @@ namespace Gibbed.MadMax.XvmCompile
 
             // Phase 0: Pre-parse #! directives from source text
             uint sourceHash = 0;
+            uint flags = 0;
             var functionHashes = new Dictionary<string, uint>(); // funcName → hash
-            PreParseDirectives(source, out sourceHash, functionHashes);
+            PreParseDirectives(source, out sourceHash, out flags, functionHashes);
 
             // Phase 1: Lex
             var lexer = new Lexer(source);
@@ -108,6 +109,7 @@ namespace Gibbed.MadMax.XvmCompile
             // Apply pre-parsed directives
             if (sourceHash != 0)
                 module.SourceHash = sourceHash;
+            module.Flags = flags;
 
             foreach (var func in module.Functions)
             {
@@ -154,9 +156,10 @@ namespace Gibbed.MadMax.XvmCompile
         /// A #! hash directive applies to the next "def" line that follows it.
         /// </summary>
         private static void PreParseDirectives(string source, out uint sourceHash,
-            Dictionary<string, uint> functionHashes)
+            out uint flags, Dictionary<string, uint> functionHashes)
         {
             sourceHash = 0;
+            flags = 0;
             var lines = source.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
 
             uint pendingHash = 0;
@@ -170,6 +173,10 @@ namespace Gibbed.MadMax.XvmCompile
                     if (directive.StartsWith("source_hash:"))
                     {
                         sourceHash = ParseHex(directive.Substring("source_hash:".Length).Trim());
+                    }
+                    else if (directive.StartsWith("flags:"))
+                    {
+                        flags = ParseHex(directive.Substring("flags:".Length).Trim());
                     }
                     else if (directive.StartsWith("hash:"))
                     {

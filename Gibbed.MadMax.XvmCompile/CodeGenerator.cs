@@ -62,6 +62,7 @@ namespace Gibbed.MadMax.XvmCompile
             var parsed = new DisParser.ParsedModule();
             parsed.Name = _module.Name;
             parsed.SourceHash = _module.SourceHash;
+            parsed.Flags = _module.Flags;
             parsed.HasDebugStrings = true;
             parsed.HasDebugInfo = true;
 

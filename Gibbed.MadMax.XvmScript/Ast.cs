@@ -30,6 +30,7 @@ namespace Gibbed.MadMax.XvmScript
     {
         public string Name;
         public uint SourceHash;
+        public uint Flags;
         public List<uint> Imports = new List<uint>();
         public List<ScriptFunction> Functions = new List<ScriptFunction>();
     }
