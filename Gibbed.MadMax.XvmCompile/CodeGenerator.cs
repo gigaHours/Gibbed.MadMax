@@ -89,12 +89,12 @@ namespace Gibbed.MadMax.XvmCompile
             // Generate body
             EmitStmts(func.Body);
 
-            // Ensure function ends with a ret
-            if (_instructions.Count == 0 ||
-                _instructions[_instructions.Count - 1].Opcode != XvmOpcode.Ret)
-            {
-                Emit(XvmOpcode.Ret, DisParser.InstructionOperandType.Int, intOp: 0);
-            }
+            // Always emit a trailing ret 0.
+            // Even if the last statement is a ret, labels may point past it
+            // (e.g. an if-then with return inside and no else).  The Avalanche
+            // compiler always emits this sentinel and the CFG builder /
+            // decompiler rely on jz/jmp targets being valid instruction indices.
+            Emit(XvmOpcode.Ret, DisParser.InstructionOperandType.Int, intOp: 0);
 
             var pf = new DisParser.ParsedFunction();
             pf.Name = func.Name;
