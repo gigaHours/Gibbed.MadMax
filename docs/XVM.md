@@ -280,6 +280,24 @@ module my_script
 
 Forces the module's `source_hash` field to a specific value. If omitted, the compiler auto-computes it via Jenkins hash of the source text.
 
+### flags
+
+```python
+module lib_vehicleupgrades
+#! flags: 0x1
+```
+
+Sets the module's `flags` field. The decompiler emits this directive automatically when the original module has non-zero flags.
+
+| Value | Meaning | Count in game |
+|-------|---------|---------------|
+| `0x0` | Standard gameobject script | 813/842 files |
+| `0x1` | Library module | 29/842 files |
+
+**Library modules** (`flags: 0x1`) are all `lib_*.xvmc` files. The game engine uses this flag to register the module's functions as globals, so other scripts can call them (e.g., `lib_vehicleupgrades.RecomputeGearbox()`). Without this flag, a library module's functions won't be accessible to other scripts.
+
+**Important:** This directive is always emitted by the decompiler when present — it is not gated by `--hashes` because it affects runtime behavior.
+
 ### hash (function)
 
 ```python
@@ -662,6 +680,7 @@ When round-tripping through decompile/compile, the following non-functional diff
 | max_stack | Over-estimated | Precisely computed | None (game needs >= actual) |
 | String hashes count | Includes overlap artifacts | Only used hashes | None |
 | source_hash | Original value | Jenkins(source text) | None (unless `#! source_hash:` specified) |
+| Dead-code `jmp` | Present after `ret` | Omitted | None (unreachable instructions) |
 
 All differences are **functionally equivalent** — the game behavior is identical.
 
