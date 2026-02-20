@@ -1,75 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
-    <ProductVersion>8.0.30703</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{A2B3C4D5-E6F7-4A8B-9C0D-1E2F3A4B5C6D}</ProjectGuid>
+    <TargetFramework>net8.0</TargetFramework>
     <OutputType>Exe</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Gibbed.MadMax.XvmDecompile</RootNamespace>
-    <AssemblyName>Gibbed.MadMax.XvmDecompile</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
-    <TargetFrameworkProfile>
-    </TargetFrameworkProfile>
-    <FileAlignment>512</FileAlignment>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>..\bin\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>..\bin\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
+    <ProjectReference Include="..\Gibbed.IO\Gibbed.IO.csproj" />
+    <ProjectReference Include="..\Gibbed.MadMax.FileFormats\Gibbed.MadMax.FileFormats.csproj" />
+    <ProjectReference Include="..\Gibbed.MadMax.XvmScript\Gibbed.MadMax.XvmScript.csproj" />
+    <ProjectReference Include="..\NDesk.Options\NDesk.Options.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Program.cs" />
-    <Compile Include="InstructionDecoder.cs" />
-    <Compile Include="CfgBuilder.cs" />
-    <Compile Include="ExpressionRecovery.cs" />
-    <Compile Include="StructuralAnalysis.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Gibbed.IO\Gibbed.IO.csproj">
-      <Project>{047857BA-DAA3-4CA7-AFB8-A1B082B28C6A}</Project>
-      <Name>Gibbed.IO</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Gibbed.MadMax.FileFormats\Gibbed.MadMax.FileFormats.csproj">
-      <Project>{ABD7E120-CAEB-4D5D-871C-33A915A75BB1}</Project>
-      <Name>Gibbed.MadMax.FileFormats</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Gibbed.MadMax.XvmScript\Gibbed.MadMax.XvmScript.csproj">
-      <Project>{D1E2F3A4-B5C6-4D7E-8F9A-0B1C2D3E4F5A}</Project>
-      <Name>Gibbed.MadMax.XvmScript</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\NDesk.Options\NDesk.Options.csproj">
-      <Project>{C98A6CD6-9422-4B35-8B7A-F520D75534D1}</Project>
-      <Name>NDesk.Options</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

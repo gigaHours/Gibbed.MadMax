@@ -1,20 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net4.8</TargetFramework>
-    <PackageOutputPath>..\bin\</PackageOutputPath>
-    <StartupObject>Gibbed.MadMax.SmallUnpack.Program</StartupObject>
-    <OutDir>..\bin\</OutDir>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Gibbed.IO\Gibbed.IO.csproj" />
     <ProjectReference Include="..\Gibbed.MadMax.FileFormats\Gibbed.MadMax.FileFormats.csproj" />
     <ProjectReference Include="..\Gibbed.ProjectData\Gibbed.ProjectData.csproj" />
     <ProjectReference Include="..\NDesk.Options\NDesk.Options.csproj" />
   </ItemGroup>
-
 </Project>
