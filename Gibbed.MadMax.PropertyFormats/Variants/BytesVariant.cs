@@ -43,9 +43,15 @@ namespace Gibbed.MadMax.PropertyFormats.Variants
 
         public void Parse(string text)
         {
+            if (string.IsNullOrEmpty(text))
+            {
+                this._Value = new byte[0];
+                return;
+            }
+
             var parts = text.Split(',');
             var bytes = new byte[parts.Length];
-            for (int i = 0; i < parts.Length; i += 2)
+            for (int i = 0; i < parts.Length; i++)
             {
                 bytes[i] = byte.Parse(parts[i], CultureInfo.InvariantCulture);
             }
