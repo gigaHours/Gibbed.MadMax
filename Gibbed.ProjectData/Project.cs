@@ -148,6 +148,10 @@ namespace Gibbed.ProjectData
                                 failed = true;
                                 throw;
                             }
+                            catch (PlatformNotSupportedException)
+                            {
+                                failed = true;
+                            }
 
                             break;
                         }
@@ -186,6 +190,10 @@ namespace Gibbed.ProjectData
                                 }
                             }
                             catch (SecurityException)
+                            {
+                                failed = true;
+                            }
+                            catch (PlatformNotSupportedException)
                             {
                                 failed = true;
                             }

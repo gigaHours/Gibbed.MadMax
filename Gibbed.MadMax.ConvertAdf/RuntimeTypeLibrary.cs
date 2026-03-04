@@ -46,6 +46,18 @@ namespace Gibbed.MadMax.ConvertAdf
             return this.TypeDefinitions[nameHash];
         }
 
+        public FileFormats.AdfFile.TypeDefinition GetTypeDefinitionByName(string name)
+        {
+            foreach (var kvp in this.TypeDefinitions)
+            {
+                if (kvp.Value.Name == name)
+                {
+                    return kvp.Value;
+                }
+            }
+            throw new KeyNotFoundException("Type definition not found: " + name);
+        }
+
         public void AddTypeDefinitions(FileFormats.AdfFile adf)
         {
             foreach (var typeDefinition in adf.TypeDefinitions)

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Gibbed.MadMax.FileFormats\Gibbed.MadMax.FileFormats.csproj" />
+    <ProjectReference Include="..\Gibbed.MadMax.PropertyFormats\Gibbed.MadMax.PropertyFormats.csproj" />
+    <ProjectReference Include="..\Gibbed.ProjectData\Gibbed.ProjectData.csproj" />
+    <ProjectReference Include="..\NDesk.Options\NDesk.Options.csproj" />
+  </ItemGroup>
+</Project>

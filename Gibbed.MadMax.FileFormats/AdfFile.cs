@@ -71,7 +71,139 @@ namespace Gibbed.MadMax.FileFormats
 
         public void Serialize(Stream output)
         {
-            throw new FormatException();
+            var endian = this._Endian;
+            var basePosition = output.Position;
+
+            // Build string table by pre-registering all names
+            var stringTable = new StringTable(null);
+            foreach (var typeDef in this._TypeDefinitions)
+            {
+                stringTable.Add(typeDef.Name);
+                if (typeDef.Members != null)
+                {
+                    foreach (var member in typeDef.Members)
+                    {
+                        stringTable.Add(member.Name);
+                    }
+                }
+            }
+            foreach (var instanceInfo in this._InstanceInfos)
+            {
+                stringTable.Add(instanceInfo.Name);
+            }
+
+            // Calculate layout
+            var comment = this._Comment ?? "";
+            var headerSize = 0x40L;
+            var commentSize = (long)Encoding.ASCII.GetByteCount(comment) + 1;
+            var dataStartOffset = Align(headerSize + commentSize, 16);
+
+            // Assign instance data offsets
+            var currentOffset = dataStartOffset;
+            for (int i = 0; i < this._InstanceInfos.Count; i++)
+            {
+                var info = this._InstanceInfos[i];
+                info.Offset = (uint)currentOffset;
+                info.Size = (uint)(info.Data != null ? info.Data.Length : 0);
+                this._InstanceInfos[i] = info;
+                currentOffset += info.Size;
+                if (i < this._InstanceInfos.Count - 1)
+                {
+                    currentOffset = Align(currentOffset, 8);
+                }
+            }
+
+            // Instance info table offset
+            var instanceInfoOffset = currentOffset;
+
+            // Type definitions offset (each InstanceInfo entry = 24 bytes)
+            var typeDefOffset = instanceInfoOffset + this._InstanceInfos.Count * 24;
+
+            // Calculate type definition total size
+            var typeDefTotalSize = 0L;
+            foreach (var td in this._TypeDefinitions)
+            {
+                typeDefTotalSize += 36; // base header
+                switch (td.Type)
+                {
+                    case TypeDefinitionType.Structure:
+                        typeDefTotalSize += 4 + (td.Members != null ? td.Members.Length * 32L : 0);
+                        break;
+                    case TypeDefinitionType.Enumeration:
+                        typeDefTotalSize += 4 + (td.Members != null ? td.Members.Length * 12L : 0);
+                        break;
+                    default:
+                        typeDefTotalSize += 4;
+                        break;
+                }
+            }
+
+            // Name table offset and total size
+            var nameTableOffset = typeDefOffset + typeDefTotalSize;
+            var nameTableSize = stringTable.GetByteCount();
+            var totalSize = nameTableOffset + nameTableSize;
+
+            // Write header
+            output.Position = basePosition;
+            output.WriteValueU32(Signature, endian);
+            output.WriteValueU32(4, endian); // version
+            output.WriteValueU32((uint)this._InstanceInfos.Count, endian);
+            output.WriteValueU32((uint)instanceInfoOffset, endian);
+            output.WriteValueU32((uint)this._TypeDefinitions.Count, endian);
+            output.WriteValueU32((uint)typeDefOffset, endian);
+            output.WriteValueU32(0, endian); // unknown18Count
+            output.WriteValueU32(0, endian); // unknown1COffset
+            output.WriteValueU32((uint)stringTable.Count, endian);
+            output.WriteValueU32((uint)nameTableOffset, endian);
+            output.WriteValueU32((uint)totalSize, endian);
+            output.WriteValueU32(0, endian); // unknown2C
+            output.WriteValueU32(0, endian); // unknown30
+            output.WriteValueU32(0, endian); // unknown34
+            output.WriteValueU32(0, endian); // unknown38
+            output.WriteValueU32(0, endian); // unknown3C
+
+            // Write comment
+            output.WriteStringZ(comment, Encoding.ASCII);
+
+            // Pad to data start
+            var padCount = dataStartOffset - (output.Position - basePosition);
+            for (long i = 0; i < padCount; i++)
+            {
+                output.WriteValueU8(0);
+            }
+
+            // Write instance data
+            foreach (var info in this._InstanceInfos)
+            {
+                output.Position = basePosition + info.Offset;
+                if (info.Data != null && info.Data.Length > 0)
+                {
+                    output.Write(info.Data, 0, info.Data.Length);
+                }
+            }
+
+            // Write instance info entries
+            output.Position = basePosition + instanceInfoOffset;
+            foreach (var info in this._InstanceInfos)
+            {
+                info.Write(output, endian, stringTable);
+            }
+
+            // Write type definitions
+            output.Position = basePosition + typeDefOffset;
+            foreach (var td in this._TypeDefinitions)
+            {
+                td.Write(output, endian, stringTable);
+            }
+
+            // Write name table
+            output.Position = basePosition + nameTableOffset;
+            stringTable.WriteTo(output);
+        }
+
+        private static long Align(long value, long alignment)
+        {
+            return (value + alignment - 1) & ~(alignment - 1);
         }
 
         public void Deserialize(Stream input)
@@ -285,9 +417,59 @@ namespace Gibbed.MadMax.FileFormats
                 return instance;
             }
 
-            internal void Write(Stream output, Endian endian)
+            internal void Write(Stream output, Endian endian, StringTable stringTable)
             {
-                throw new NotImplementedException();
+                output.WriteValueU32((uint)this.Type, endian);
+                output.WriteValueU32(this.Size, endian);
+                output.WriteValueU32(this.Alignment, endian);
+                output.WriteValueU32(this.NameHash, endian);
+                output.WriteValueS64(stringTable.Add(this.Name), endian);
+                output.WriteValueU32(this.Flags, endian);
+                output.WriteValueU32(this.ElementTypeHash, endian);
+                output.WriteValueU32(this.ElementLength, endian);
+
+                switch (this.Type)
+                {
+                    case TypeDefinitionType.Structure:
+                    {
+                        output.WriteValueU32((uint)(this.Members != null ? this.Members.Length : 0), endian);
+                        if (this.Members != null)
+                        {
+                            foreach (var member in this.Members)
+                            {
+                                member.Write(output, endian, stringTable);
+                            }
+                        }
+                        break;
+                    }
+
+                    case TypeDefinitionType.Array:
+                    case TypeDefinitionType.InlineArray:
+                    case TypeDefinitionType.Pointer:
+                    case TypeDefinitionType.BitField:
+                    {
+                        output.WriteValueU32(0, endian);
+                        break;
+                    }
+
+                    case TypeDefinitionType.Enumeration:
+                    {
+                        output.WriteValueU32(this.EnumerationCount, endian);
+                        if (this.Members != null)
+                        {
+                            foreach (var member in this.Members)
+                            {
+                                member.WriteEnum(output, endian, stringTable);
+                            }
+                        }
+                        break;
+                    }
+
+                    default:
+                    {
+                        throw new NotSupportedException();
+                    }
+                }
             }
 
             public override string ToString()
@@ -335,9 +517,21 @@ namespace Gibbed.MadMax.FileFormats
                 return instance;
             }
 
-            internal void Write(Stream output, Endian endian)
+            internal void Write(Stream output, Endian endian, StringTable stringTable)
             {
-                throw new NotImplementedException();
+                output.WriteValueS64(stringTable.Add(this.Name), endian);
+                output.WriteValueU32(this.TypeHash, endian);
+                output.WriteValueU32(this.Size, endian);
+                output.WriteValueU32(this.Offset, endian);
+                output.WriteValueU32(this.Unknown10, endian);
+                output.WriteValueU32(this.Unknown14, endian);
+                output.WriteValueU32(this.Unknown18, endian);
+            }
+
+            internal void WriteEnum(Stream output, Endian endian, StringTable stringTable)
+            {
+                output.WriteValueS64(stringTable.Add(this.Name), endian);
+                output.WriteValueU32(this.EnumId, endian);
             }
 
             public override string ToString()
@@ -353,6 +547,7 @@ namespace Gibbed.MadMax.FileFormats
             public uint Offset;
             public uint Size;
             public string Name;
+            public byte[] Data;
 
             internal static InstanceInfo Read(Stream input, Endian endian, StringTable stringTable)
             {
@@ -366,9 +561,13 @@ namespace Gibbed.MadMax.FileFormats
                 return instance;
             }
 
-            internal void Write(Stream output, Endian endian)
+            internal void Write(Stream output, Endian endian, StringTable stringTable)
             {
-                throw new NotImplementedException();
+                output.WriteValueU32(this.NameHash, endian);
+                output.WriteValueU32(this.TypeHash, endian);
+                output.WriteValueU32(this.Offset, endian);
+                output.WriteValueU32(this.Size, endian);
+                output.WriteValueS64(stringTable.Add(this.Name), endian);
             }
 
             public override string ToString()
@@ -384,6 +583,11 @@ namespace Gibbed.MadMax.FileFormats
             public StringTable(string[] names)
             {
                 this._Table = names == null ? new List<string>() : new List<string>(names);
+            }
+
+            public int Count
+            {
+                get { return this._Table.Count; }
             }
 
             public string Get(long index)
@@ -406,6 +610,31 @@ namespace Gibbed.MadMax.FileFormats
                 index = this._Table.Count;
                 this._Table.Add(text);
                 return index;
+            }
+
+            public void WriteTo(Stream output)
+            {
+                // Write length bytes
+                foreach (var name in this._Table)
+                {
+                    output.WriteValueU8((byte)Encoding.ASCII.GetByteCount(name));
+                }
+                // Write strings with null terminators
+                foreach (var name in this._Table)
+                {
+                    output.WriteString(name, Encoding.ASCII);
+                    output.WriteValueU8(0);
+                }
+            }
+
+            public long GetByteCount()
+            {
+                long total = this._Table.Count; // length bytes
+                foreach (var name in this._Table)
+                {
+                    total += Encoding.ASCII.GetByteCount(name) + 1; // string + null
+                }
+                return total;
             }
         }
     }
