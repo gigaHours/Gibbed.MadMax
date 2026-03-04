@@ -142,7 +142,7 @@ namespace Gibbed.MadMax.ConvertAdf
             if (mode == Mode.Export)
             {
                 string inputPath = extras[0];
-                string outputPath = extras.Count > 1 ? extras[1] : Path.ChangeExtension(inputPath, ".xml");
+                string outputPath = extras.Count > 1 ? extras[1] : inputPath + ".xml";
 
                 var adf = new FileFormats.AdfFile();
                 using (var input = File.OpenRead(inputPath))
@@ -751,14 +751,19 @@ namespace Gibbed.MadMax.ConvertAdf
         private static void Import(List<string> extras, RuntimeTypeLibrary runtime)
         {
             string inputPath = extras[0];
-            string outputPath = extras.Count > 1
-                ? extras[1]
-                : Path.ChangeExtension(inputPath, null);
-
-            // If output has no extension and input is .xml, try to guess original extension
-            if (string.IsNullOrEmpty(Path.GetExtension(outputPath)))
+            string outputPath;
+            if (extras.Count > 1)
             {
-                outputPath = inputPath.Replace(".xml", "");
+                outputPath = extras[1];
+            }
+            else if (inputPath.EndsWith(".xml", StringComparison.OrdinalIgnoreCase))
+            {
+                // Remove trailing .xml to restore original filename
+                outputPath = inputPath.Substring(0, inputPath.Length - 4);
+            }
+            else
+            {
+                outputPath = Path.ChangeExtension(inputPath, null);
             }
 
             var doc = new XmlDocument();
