@@ -121,28 +121,41 @@ namespace Gibbed.MadMax.ResolveHashes
                 return match.Value;
             });
 
-            // Match decimal integers in uint32 range
+            // Match decimal integers in uint32 range (including negative signed int32 values)
             // Use a negative lookbehind/lookahead to avoid matching numbers that are part of
             // identifiers, hex values, or floating point numbers
-            text = Regex.Replace(text, @"(?<![0-9A-Za-z_\.xX])(\d{1,10})(?![0-9A-Za-z_\.])", match =>
+            text = Regex.Replace(text, @"(?<![0-9A-Za-z_\.xX])(-?\d{1,10})(?![0-9A-Za-z_\.])", match =>
             {
                 string numStr = match.Groups[1].Value;
-                if (ulong.TryParse(numStr, out ulong val) && val <= uint.MaxValue)
+                uint hash;
+                if (numStr.StartsWith("-"))
                 {
-                    uint hash = (uint)val;
-                    if (names.Contains(hash))
+                    if (!long.TryParse(numStr, out long signed) || signed < int.MinValue)
                     {
-                        string name = names[hash];
-                        replacementCount++;
-                        if (verbose)
-                        {
-                            Console.WriteLine("  {0} -> {1}", hash, name);
-                        }
-                        string comment = noComments
-                            ? ""
-                            : string.Format("<!-- {0} | {1} | 0x{2:X8} -->", name, hash, hash);
-                        return name + comment;
+                        return match.Value;
                     }
+                    hash = unchecked((uint)(int)signed);
+                }
+                else
+                {
+                    if (!ulong.TryParse(numStr, out ulong val) || val > uint.MaxValue)
+                    {
+                        return match.Value;
+                    }
+                    hash = (uint)val;
+                }
+                if (names.Contains(hash))
+                {
+                    string name = names[hash];
+                    replacementCount++;
+                    if (verbose)
+                    {
+                        Console.WriteLine("  {0} -> {1}", match.Value, name);
+                    }
+                    string comment = noComments
+                        ? ""
+                        : string.Format("<!-- {0} | {1} | 0x{2:X8} -->", name, hash, hash);
+                    return name + comment;
                 }
                 return match.Value;
             });
