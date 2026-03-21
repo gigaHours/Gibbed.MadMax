@@ -37,7 +37,7 @@ namespace Gibbed.MadMax.BinarySearch
     {
         private static string GetExecutableName()
         {
-            return Path.GetFileName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            return Path.GetFileName(Environment.ProcessPath);
         }
 
         private enum Endianness

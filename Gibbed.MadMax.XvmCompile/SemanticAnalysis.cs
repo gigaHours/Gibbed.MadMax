@@ -52,8 +52,7 @@ namespace Gibbed.MadMax.XvmCompile
             else
             {
                 // Try to find xvm_globals.txt next to the executable
-                var exeDir = Path.GetDirectoryName(
-                    System.Reflection.Assembly.GetExecutingAssembly().Location);
+                var exeDir = AppContext.BaseDirectory;
                 var defaultPath = Path.Combine(exeDir, "xvm_globals.txt");
                 if (File.Exists(defaultPath))
                 {

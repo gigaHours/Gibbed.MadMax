@@ -35,7 +35,7 @@ namespace Gibbed.MadMax.ConvertSpreadsheet
     {
         private static string GetExecutableName()
         {
-            return Path.GetFileName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            return Path.GetFileName(Environment.ProcessPath);
         }
 
         private static void Main(string[] args)

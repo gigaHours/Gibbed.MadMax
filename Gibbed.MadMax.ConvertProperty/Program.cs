@@ -40,7 +40,7 @@ namespace Gibbed.MadMax.ConvertProperty
     {
         private static string GetExecutableName()
         {
-            return Path.GetFileName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            return Path.GetFileName(Environment.ProcessPath);
         }
 
         private static void SetOption<T>(string s, ref T variable, T value)
